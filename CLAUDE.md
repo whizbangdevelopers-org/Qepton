@@ -6,6 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Qepton is a code snippet manager powered by GitHub Gist. It's a multi-platform application built with the Quasar Framework (Vue 3) supporting Electron desktop, PWA, and Capacitor mobile deployments.
 
+## Language & Runtime
+
+- **Language**: TypeScript / Vue 3
+- **Version**: Node.js >= 18.0.0, npm >= 9.0.0
+- **Build System**: Quasar CLI with Vite
+- **Package Manager**: npm
+
+## Project Structure
+
+- **src/**: Main application source code
+  - **components/**: Vue components (dialogs, panels, editors)
+  - **pages/**: Route pages (IndexPage, LoginPage, EditorDemoPage)
+  - **layouts/**: Layout components (MainLayout, AuthLayout)
+  - **stores/**: Pinia state stores (auth, gists, ui, search, settings)
+  - **services/**: Business logic (github-api, parser, search, markdown, jupyter)
+  - **composables/**: Vue composables (useExport, useMeta, usePlatform)
+  - **boot/**: App initialization modules
+- **src-electron/**: Electron main process and preload scripts
+- **src-pwa/**: PWA service worker configuration
+- **src-capacitor/**: Mobile app configuration
+- **tests/**: Unit and E2E tests
+- **e2e-docker/**: Docker-based E2E testing environment
+
+## Main Entry Points
+
+- **Web/SPA**: `src/App.vue` → `src/pages/IndexPage.vue`
+- **Electron Main**: `src-electron/electron-main.ts`
+- **Electron Preload**: `src-electron/electron-preload.ts`
+- **Router**: `src/router/routes.ts`
+- **Stores**: `src/stores/` (auth.ts, gists.ts, ui.ts, search.ts, settings.ts)
+
 ## Common Commands
 
 ```bash
@@ -54,10 +85,12 @@ The `playwright.config.ts` at the project root is used by the Docker container (
 
 ### State Management
 
-Three Pinia stores manage application state:
+Pinia stores manage application state:
 - **auth** (`src/stores/auth.ts`) - GitHub OAuth token, user profile
 - **gists** (`src/stores/gists.ts`) - Gist data, tags (language tags prefixed with `lang@`, custom tags without prefix), sync state
-- **ui** (`src/stores/ui.ts`) - Theme, dashboard mode, search settings
+- **ui** (`src/stores/ui.ts`) - Theme, dashboard mode, UI preferences
+- **search** (`src/stores/search.ts`) - Search query, filters, search settings
+- **settings** (`src/stores/settings.ts`) - User preferences and app settings
 
 Stores use `pinia-plugin-persistedstate` for local storage persistence.
 
