@@ -96,18 +96,6 @@
       <NavigationPanel />
     </q-drawer>
 
-    <!-- Right Drawer: Tag Details (hide on small screens) -->
-    <q-drawer
-      v-if="!uiStore.immersiveMode && $q.screen.gt.md"
-      v-model="rightDrawerOpen"
-      side="right"
-      bordered
-      :width="250"
-      data-test="tag-details-panel"
-    >
-      <TagDetailsPanel />
-    </q-drawer>
-
     <!-- Main Content -->
     <q-page-container>
       <router-view />
@@ -134,7 +122,6 @@ import { useUIStore } from 'src/stores/ui'
 import { useGistsStore } from 'src/stores/gists'
 import { themeService } from 'src/services/theme'
 import NavigationPanel from 'src/components/NavigationPanel.vue'
-import TagDetailsPanel from 'src/components/TagDetailsPanel.vue'
 import NewGistDialog from 'src/components/NewGistDialog.vue'
 import EditGistDialog from 'src/components/EditGistDialog.vue'
 import DeleteGistDialog from 'src/components/DeleteGistDialog.vue'
@@ -151,7 +138,6 @@ const uiStore = useUIStore()
 const gistsStore = useGistsStore()
 
 const leftDrawerOpen = ref(true)
-const rightDrawerOpen = ref(true)
 
 function toggleTheme() {
   themeService.toggleTheme()

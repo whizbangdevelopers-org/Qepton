@@ -53,14 +53,14 @@
 ### 3. Dashboard Layout & Views
 | Feature | Gisto | Cacher | GistHive | massCode | **Qepton** |
 |---------|-------|--------|----------|----------|------------|
-| 3-column layout | ✅ | ✅ | ✅ | ✅ | ❌ (2-column) |
-| Inline preview | ✅ | ✅ | ✅ | ✅ | ❌ (dialog) |
+| 3-column layout | ✅ | ✅ | ✅ | ✅ | ✅ Implemented |
+| Inline preview | ✅ | ✅ | ✅ | ✅ | ✅ Implemented |
 | Card/List view toggle | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Split-pane editor | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 **Suggested additions:**
-- [ ] 3-pane layout: sidebar | gist list | code preview (like massCode)
-- [ ] Inline preview panel instead of full-screen dialog
+- [x] 3-pane layout: sidebar | gist list | code preview (like massCode)
+- [x] Inline preview panel instead of full-screen dialog
 - [ ] View toggle: compact list vs card view
 
 ---
@@ -145,7 +145,7 @@
 
 ### Must Have (High Impact)
 1. [x] **Global search bar** with instant filtering
-2. [ ] **3-pane layout** with inline preview (no dialog)
+2. [x] **3-pane layout** with inline preview (no dialog)
 3. [x] **Starred Gists section** - GitHub starred gists in navigation
 4. [ ] **Sort options** dropdown
 5. [ ] **Keyboard navigation** through gist list
