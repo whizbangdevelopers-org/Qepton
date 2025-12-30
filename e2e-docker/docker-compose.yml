@@ -1,0 +1,157 @@
+# Qepton E2E Testing Docker Compose Configuration
+# Supports multiple testing modes: run, watch, UI, debug
+
+services:
+  # Main test runner - runs all tests once
+  playwright-tests:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-playwright-tests
+    volumes:
+      # Mount source for live updates (optional)
+      - ..:/app
+      # Mount output directories for reports
+      - ./output/reports:/app/playwright-report
+      - ./output/test-results:/app/test-results
+      - ./output/logs:/app/logs
+    environment:
+      - CI=true
+      - NODE_ENV=test
+      - GITHUB_TEST_TOKEN=${GITHUB_TEST_TOKEN:-}
+    network_mode: host
+    working_dir: /app
+    entrypoint: ["/bin/bash", "/app/e2e-docker/config/entrypoint.sh"]
+    command: ["--workers=4"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Watch mode - re-runs tests on file changes
+  playwright-watch:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-playwright-watch
+    profiles:
+      - watch
+    volumes:
+      - ..:/app
+      - ./output/reports:/app/playwright-report
+      - ./output/test-results:/app/test-results
+    environment:
+      - CI=false
+      - NODE_ENV=test
+      - GITHUB_TEST_TOKEN=${GITHUB_TEST_TOKEN:-}
+    network_mode: host
+    working_dir: /app
+    command: npx playwright test --ui-port=9323 --ui-host=0.0.0.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # UI mode - interactive test runner with visual interface
+  playwright-ui:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-playwright-ui
+    profiles:
+      - ui
+    ports:
+      - "9323:9323"
+    volumes:
+      - ..:/app
+      - ./output/reports:/app/playwright-report
+      - ./output/test-results:/app/test-results
+    environment:
+      - CI=false
+      - NODE_ENV=test
+      - GITHUB_TEST_TOKEN=${GITHUB_TEST_TOKEN:-}
+    network_mode: host
+    working_dir: /app
+    command: npx playwright test --ui --ui-port=9323 --ui-host=0.0.0.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Debug mode - headed browser with step-through debugging
+  playwright-debug:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-playwright-debug
+    profiles:
+      - debug
+    volumes:
+      - ..:/app
+      - ./output/reports:/app/playwright-report
+      - ./output/test-results:/app/test-results
+    environment:
+      - CI=false
+      - NODE_ENV=test
+      - PWDEBUG=1
+      - GITHUB_TEST_TOKEN=${GITHUB_TEST_TOKEN:-}
+    network_mode: host
+    working_dir: /app
+    command: npx playwright test --debug --workers=1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Dev server - runs Quasar dev server for manual testing
+  dev-server:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-dev-server
+    profiles:
+      - dev
+    ports:
+      - "9000:9000"
+    volumes:
+      - ..:/app
+    environment:
+      - NODE_ENV=development
+    network_mode: host
+    working_dir: /app
+    command: npx quasar dev
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Single test file runner
+  playwright-single:
+    build:
+      context: ..
+      dockerfile: e2e-docker/config/Dockerfile
+    container_name: qepton-playwright-single
+    profiles:
+      - single
+    volumes:
+      - ..:/app
+      - ./output/reports:/app/playwright-report
+      - ./output/test-results:/app/test-results
+    environment:
+      - CI=true
+      - NODE_ENV=test
+      - TEST_FILE=${TEST_FILE:-tests/e2e/auth.spec.ts}
+      - GITHUB_TEST_TOKEN=${GITHUB_TEST_TOKEN:-}
+    network_mode: host
+    working_dir: /app
+    command: sh -c "npx playwright test ${TEST_FILE} --workers=1"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

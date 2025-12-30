@@ -1,0 +1,9 @@
+# Output directories - generated during test runs
+output/reports/*
+output/test-results/*
+output/logs/*
+
+# Keep directory structure
+!output/reports/.gitkeep
+!output/test-results/.gitkeep
+!output/logs/.gitkeep
