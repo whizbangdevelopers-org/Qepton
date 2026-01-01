@@ -1,0 +1,164 @@
+# Qepton
+
+<div align="center">
+
+**Enhanced Multi-Platform Code Snippet Manager**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
+[![Vue 3](https://img.shields.io/badge/Vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org/)
+[![Quasar](https://img.shields.io/badge/Quasar-2.x-1976D2?logo=quasar)](https://quasar.dev/)
+
+</div>
+
+---
+
+Qepton is a powerful code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor).
+
+## Features
+
+### Core Features (Free)
+- 🔗 **GitHub Gist** - Full support for GitHub Gist API
+- 🏷️ **Smart Tagging** - Auto-tags by language, custom tags via `#tag` syntax
+- 🔍 **Fuzzy Search** - Fast search across all snippets with Fuse.js
+- ✏️ **CodeMirror 6** - Modern code editor with syntax highlighting
+- 📝 **Markdown Preview** - Render markdown with KaTeX math support
+- 📓 **Jupyter Support** - View and edit Jupyter notebooks
+- 🌙 **Dark Mode** - Beautiful dark theme
+- 🖥️ **Multi-Platform** - Desktop, web, and mobile
+
+### Coming Soon
+- 🔄 **GitLab Snippets** - Support for GitLab
+- 🪣 **Bitbucket Snippets** - Support for Bitbucket
+- 🔌 **Plugin System** - Extend functionality with plugins
+
+### Premium Features
+Premium features are available in [Qepton Premium](https://github.com/wriver4/qepton-premium):
+- 🤖 **AI Assist** - Code explanations, suggestions, auto-tagging
+- 👥 **Team Sync** - Real-time collaboration
+- 🏠 **Gitea/Forgejo** - Self-hosted git service support
+- 🔀 **Migration Tools** - Cross-platform snippet migration
+
+## Quick Start
+
+### Prerequisites
+- Node.js >= 18.0.0
+- npm >= 9.0.0
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/wriver4/qepton.git
+cd qepton
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+### Build
+
+```bash
+# Build web app
+npm run build
+
+# Build PWA
+npm run build:pwa
+
+# Build desktop app (Electron)
+npm run build:electron
+```
+
+## Project Structure
+
+```
+src/
+├── core/              # Core types and plugin system
+├── adapters/          # Service adapters (GitHub, GitLab, etc.)
+│   ├── github/
+│   ├── gitlab/
+│   └── bitbucket/
+├── plugins/           # Plugin implementations
+│   └── basic/         # Free plugins
+├── components/        # Vue components
+├── pages/             # Route pages
+├── layouts/           # Layout components
+├── stores/            # Pinia state stores
+├── services/          # Business logic
+├── composables/       # Vue composables
+└── types/             # TypeScript types
+```
+
+## Architecture
+
+### Adapter Pattern
+Qepton uses an adapter pattern to support multiple snippet services:
+
+```typescript
+interface SnippetServiceAdapter {
+  serviceType: ServiceType;
+  listSnippets(): Promise<Snippet[]>;
+  createSnippet(payload): Promise<Snippet>;
+  // ... more methods
+}
+```
+
+### Plugin System
+Extend Qepton with plugins:
+
+```typescript
+const myPlugin: QeptonPlugin = {
+  id: 'my-plugin',
+  name: 'My Plugin',
+  install(app) {
+    app.registerCommand({
+      id: 'my-command',
+      execute: () => { /* ... */ }
+    });
+  }
+};
+```
+
+## Development
+
+### Commands
+
+```bash
+npm run dev              # Start dev server (SPA)
+npm run dev:electron     # Start Electron dev
+npm run dev:pwa          # Start PWA dev
+npm run lint             # Run ESLint
+npm run format           # Run Prettier
+npm run test:unit        # Run unit tests
+npm run test:unit:run    # Run tests once
+```
+
+### Testing
+
+Unit tests use Vitest:
+```bash
+npm run test:unit
+```
+
+E2E tests use Playwright (via Docker):
+```bash
+cd e2e-docker
+./scripts/run-tests.sh
+```
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Credits
+
+- Originally inspired by [Lepton](https://github.com/nicokosi/lepton)
+- Built with [Quasar Framework](https://quasar.dev/)
+- Code editor powered by [CodeMirror 6](https://codemirror.net/)

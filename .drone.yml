@@ -1,0 +1,113 @@
+---
+kind: pipeline
+type: docker
+name: qepton-build
+
+trigger:
+  branch:
+    - main
+    - development
+  event:
+    - push
+    - pull_request
+
+steps:
+  - name: install
+    image: node:20-alpine
+    commands:
+      - npm ci
+
+  - name: lint
+    image: node:20-alpine
+    commands:
+      - npm run lint
+    depends_on:
+      - install
+
+  - name: test
+    image: node:20-alpine
+    commands:
+      - npm run test:unit:run
+    depends_on:
+      - install
+
+  - name: build-spa
+    image: node:20-alpine
+    commands:
+      - npm run build
+    depends_on:
+      - lint
+      - test
+    when:
+      branch:
+        - main
+
+  - name: build-pwa
+    image: node:20-alpine
+    commands:
+      - npm run build:pwa
+    depends_on:
+      - lint
+      - test
+    when:
+      branch:
+        - main
+
+---
+kind: pipeline
+type: docker
+name: qepton-e2e
+
+trigger:
+  branch:
+    - main
+  event:
+    - push
+
+steps:
+  - name: e2e-tests
+    image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    environment:
+      GITHUB_TEST_TOKEN:
+        from_secret: github_test_token
+    commands:
+      - npm ci
+      - npx playwright install chromium
+      - npx playwright test
+    depends_on:
+      - clone
+
+---
+kind: pipeline
+type: docker
+name: qepton-release
+
+trigger:
+  event:
+    - tag
+
+steps:
+  - name: install
+    image: node:20-alpine
+    commands:
+      - npm ci
+
+  - name: build-all
+    image: node:20-alpine
+    commands:
+      - npm run build
+      - npm run build:pwa
+    depends_on:
+      - install
+
+  - name: publish
+    image: plugins/github-release
+    settings:
+      api_key:
+        from_secret: github_token
+      files:
+        - dist/spa/*
+        - dist/pwa/*
+      title: ${DRONE_TAG}
+    depends_on:
+      - build-all
