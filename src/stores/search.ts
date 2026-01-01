@@ -261,6 +261,22 @@ export const useSearchStore = defineStore('search', {
       this.filters.languages = []
       this.filters.dateRange = 'all'
       console.debug('[Search] Filters cleared')
+    },
+
+    /**
+     * Reset all search state (called on logout)
+     */
+    $reset(): void {
+      this.query = ''
+      this.results = []
+      this.isSearching = false
+      this.savedSearches = []
+      this.filters = {
+        visibility: 'all',
+        languages: [],
+        dateRange: 'all'
+      }
+      console.debug('[Search] Store reset')
     }
   },
 

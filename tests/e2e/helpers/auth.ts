@@ -11,35 +11,38 @@ export async function loginWithToken(page: Page): Promise<void> {
     throw new Error('GITHUB_TEST_TOKEN environment variable is required for E2E tests')
   }
 
-  // Navigate to login using hash routing format
-  await page.goto('/#/login')
-
-  // Clear all auth storage after page loads but before Vue hydrates
-  await page.evaluate(() => {
+  // Clear storage first using addInitScript to ensure it runs before Vue loads
+  await page.addInitScript(() => {
     localStorage.clear()
     sessionStorage.clear()
   })
 
-  // Reload to get a fresh state without any persisted auth
-  await page.reload()
+  // Navigate to login using hash routing format with networkidle
+  await page.goto('/#/login', { waitUntil: 'networkidle' })
 
-  // Wait for login page to be ready
-  await expect(page.locator('[data-test="token-input"]')).toBeVisible({ timeout: 10000 })
+  // Wait for Vue app to fully mount - check for the login form
+  await expect(page.locator('[data-test="token-input"]')).toBeVisible({ timeout: 15000 })
 
-  // Enter token
-  await page.fill('[data-test="token-input"]', token)
+  // Small delay to ensure Vue has fully hydrated
+  await page.waitForTimeout(300)
 
-  // Submit
-  await page.click('[data-test="login-button"]')
+  // Enter token using fill (which clears existing text first)
+  await page.locator('[data-test="token-input"]').fill(token)
 
-  // Wait for either:
-  // 1. Username visible (success - redirected to main page)
-  // 2. Error banner (failure - still on login page)
-  const successIndicator = page.locator('[data-test="username"]')
+  // Wait a moment for the button to become enabled
+  await expect(page.locator('[data-test="login-button"]')).toBeEnabled({ timeout: 5000 })
+
+  // Click login button
+  await page.locator('[data-test="login-button"]').click()
+
+  // Wait for navigation to complete - either success or error
+  // Success: user-menu appears (which contains the username)
+  // Error: error banner appears while still on login page
+  const successIndicator = page.locator('[data-test="user-menu"]')
   const errorIndicator = page.locator('.q-banner.bg-negative')
 
-  // Race between success and error
-  await expect(successIndicator.or(errorIndicator)).toBeVisible({ timeout: 30000 })
+  // Wait with a generous timeout for the login API call to complete
+  await expect(successIndicator.or(errorIndicator)).toBeVisible({ timeout: 45000 })
 
   // If error is shown, fail with descriptive message
   if (await errorIndicator.isVisible()) {
@@ -47,8 +50,11 @@ export async function loginWithToken(page: Page): Promise<void> {
     throw new Error(`Login failed: ${errorText}`)
   }
 
-  // Verify we're on main page (hash route should be #/ not #/login)
-  await expect(page).toHaveURL(/#\/$/)
+  // Wait for the main page to fully load (URL should not be login)
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 })
+
+  // Wait for network to settle after login (gist sync happens in background)
+  await page.waitForLoadState('networkidle', { timeout: 30000 })
 }
 
 /**

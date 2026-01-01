@@ -15,9 +15,25 @@ describe('Parser Service', () => {
       const result = parseDescription('[My Title] This is a description #tag1 #tag2')
 
       expect(result.title).toBe('My Title')
-      expect(result.description).toBe('This is a description #tag1 #tag2')
+      expect(result.description).toBe('This is a description')
       expect(result.customTags).toEqual(['tag1', 'tag2'])
       expect(result.tagStyle).toBe('twitter')
+    })
+
+    it('should strip Twitter hashtags from description', () => {
+      const result = parseDescription('Wordpress, Woocommerce, User Registration #wordpress #php #css')
+
+      expect(result.description).toBe('Wordpress, Woocommerce, User Registration')
+      expect(result.customTags).toEqual(['wordpress', 'php', 'css'])
+      expect(result.tagStyle).toBe('twitter')
+    })
+
+    it('should return empty description when only title and hashtags exist', () => {
+      const result = parseDescription('[API Keys] #id #key #api')
+
+      expect(result.title).toBe('API Keys')
+      expect(result.description).toBe('')
+      expect(result.customTags).toEqual(['id', 'key', 'api'])
     })
 
     it('should parse description with legacy tags format', () => {
@@ -32,6 +48,7 @@ describe('Parser Service', () => {
       const result = parseDescription('Just a description #tag')
 
       expect(result.title).toBe('')
+      expect(result.description).toBe('Just a description')
       expect(result.customTags).toEqual(['tag'])
       expect(result.tagStyle).toBe('twitter')
     })
@@ -68,6 +85,7 @@ describe('Parser Service', () => {
     it('should handle description with only hashtags', () => {
       const result = parseDescription('#javascript #python')
 
+      expect(result.description).toBe('')
       expect(result.customTags).toEqual(['javascript', 'python'])
     })
 

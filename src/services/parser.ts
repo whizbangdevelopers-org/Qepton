@@ -43,11 +43,16 @@ export function parseDescription(rawDescription: string | null | undefined): Par
   }
 
   // Extract clean description (remove title and tags)
-  const tagsLength = tagStyle === 'legacy' ? extractLegacyTagsString(description).length : 0
+  let cleanDescription = description.substring(rawTitle.length).trim()
 
-  const cleanDescription = description
-    .substring(rawTitle.length, description.length - tagsLength)
-    .trim()
+  if (tagStyle === 'legacy') {
+    const tagsLength = extractLegacyTagsString(description).length
+    cleanDescription = description
+      .substring(rawTitle.length, description.length - tagsLength)
+      .trim()
+  } else if (tagStyle === 'twitter') {
+    cleanDescription = cleanDescription.replace(/#\w+/g, '').replace(/\s+/g, ' ').trim()
+  }
 
   return {
     title,

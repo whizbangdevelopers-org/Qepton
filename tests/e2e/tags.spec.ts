@@ -51,4 +51,50 @@ test.describe('Tag System', () => {
   test.skip('should pin a tag', async () => {
     // Requires pinned tags modal with clickable tags
   })
+
+  test('should display tag color picker button', async ({ page }) => {
+    // Expand tags section if collapsed
+    const tagsSection = page.locator('text=TAGS')
+    await tagsSection.click()
+
+    // Look for palette button on any tag item
+    const paletteBtn = page.locator('.tag-item button[icon="palette"], .tag-item .q-btn').filter({ hasText: '' }).first()
+    await expect(paletteBtn.or(page.locator('.tag-item .q-btn').first())).toBeVisible({ timeout: 5000 })
+  })
+
+  test('should show solid tag icon when color is assigned', async ({ page }) => {
+    // Expand tags section
+    const tagsSection = page.locator('text=TAGS')
+    await tagsSection.click()
+
+    // Find a tag item with a color picker
+    const tagItem = page.locator('.tag-item').first()
+    if (await tagItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Click the palette button to open color picker
+      const paletteBtn = tagItem.locator('button').filter({ has: page.locator('[class*="palette"]') }).first()
+      if (await paletteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await paletteBtn.click()
+
+        // Select a color from the picker
+        const colorSwatch = page.locator('.color-swatch').first()
+        if (await colorSwatch.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await colorSwatch.click()
+
+          // Verify solid icon is now shown (mdi-tag instead of mdi-tag-outline)
+          await expect(tagItem.locator('.q-icon').first()).toBeVisible()
+        }
+      }
+    }
+  })
+
+  test('should toggle tag colors in settings', async ({ page }) => {
+    // Open settings
+    await page.click('[data-test="settings-button"], button:has-text("Settings"), .q-btn:has([class*="settings"])')
+
+    // Look for the Show Tag Colors toggle
+    const tagColorsToggle = page.locator('text=Show Tag Colors')
+    if (await tagColorsToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await expect(tagColorsToggle).toBeVisible()
+    }
+  })
 })

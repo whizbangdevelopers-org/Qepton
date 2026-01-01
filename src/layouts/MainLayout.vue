@@ -7,18 +7,6 @@
 
         <q-space />
 
-        <!-- Search Button -->
-        <q-btn
-          flat
-          round
-          dense
-          icon="search"
-          @click="uiStore.openModal('search')"
-          data-test="search-button"
-        >
-          <q-tooltip>Search (Shift+Space)</q-tooltip>
-        </q-btn>
-
         <!-- Sync Button -->
         <q-btn
           flat
@@ -110,6 +98,7 @@
     <PinnedTagsDialog />
     <RawGistDialog />
     <SettingsDialog />
+    <VersionHistoryDialog />
   </q-layout>
 </template>
 
@@ -130,6 +119,7 @@ import LogoutDialog from 'src/components/LogoutDialog.vue'
 import PinnedTagsDialog from 'src/components/PinnedTagsDialog.vue'
 import RawGistDialog from 'src/components/RawGistDialog.vue'
 import SettingsDialog from 'src/components/SettingsDialog.vue'
+import VersionHistoryDialog from 'src/components/VersionHistoryDialog.vue'
 
 const $q = useQuasar()
 const uiStore = useUIStore()

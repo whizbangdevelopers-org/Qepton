@@ -26,7 +26,8 @@ export const useUIStore = defineStore('ui', {
       search: false,
       logout: false,
       pinnedTags: false,
-      settings: false
+      settings: false,
+      versionHistory: false
     },
     rawGistContent: null,
     immersiveMode: false,
@@ -35,6 +36,9 @@ export const useUIStore = defineStore('ui', {
     updateInfo: null,
     previewLines: 5,
     navDrawers: {
+      allGistsVisible: true,
+      starredVisible: true,
+      recentsVisible: true,
       languagesVisible: true,
       languagesExpanded: true,
       tagsVisible: true,
@@ -44,7 +48,9 @@ export const useUIStore = defineStore('ui', {
     gistSort: {
       sortBy: 'updated',
       direction: 'desc'
-    }
+    },
+    tagColors: {},
+    showTagColors: true
   }),
 
   getters: {
@@ -235,8 +241,14 @@ export const useUIStore = defineStore('ui', {
     /**
      * Toggle nav drawer visibility
      */
-    toggleNavDrawerVisibility(drawer: 'languages' | 'tags'): void {
-      if (drawer === 'languages') {
+    toggleNavDrawerVisibility(drawer: 'allGists' | 'starred' | 'recents' | 'languages' | 'tags'): void {
+      if (drawer === 'allGists') {
+        this.navDrawers.allGistsVisible = !this.navDrawers.allGistsVisible
+      } else if (drawer === 'starred') {
+        this.navDrawers.starredVisible = !this.navDrawers.starredVisible
+      } else if (drawer === 'recents') {
+        this.navDrawers.recentsVisible = !this.navDrawers.recentsVisible
+      } else if (drawer === 'languages') {
         this.navDrawers.languagesVisible = !this.navDrawers.languagesVisible
       } else {
         this.navDrawers.tagsVisible = !this.navDrawers.tagsVisible
@@ -304,11 +316,38 @@ export const useUIStore = defineStore('ui', {
       this.gistSort.direction = this.gistSort.direction === 'asc' ? 'desc' : 'asc'
       settingsSync.saveSettings({ gistSort: { ...this.gistSort } })
       console.debug(`[UI] Sort direction: ${this.gistSort.direction}`)
+    },
+
+    /**
+     * Set a tag's color
+     */
+    setTagColor(tag: string, color: string): void {
+      this.tagColors[tag] = color
+      settingsSync.saveSettings({ tagColors: { ...this.tagColors } })
+      console.debug(`[UI] Set tag color: ${tag} -> ${color}`)
+    },
+
+    /**
+     * Remove a tag's color
+     */
+    removeTagColor(tag: string): void {
+      delete this.tagColors[tag]
+      settingsSync.saveSettings({ tagColors: { ...this.tagColors } })
+      console.debug(`[UI] Removed tag color: ${tag}`)
+    },
+
+    /**
+     * Toggle show tag colors
+     */
+    toggleShowTagColors(): void {
+      this.showTagColors = !this.showTagColors
+      settingsSync.saveSettings({ showTagColors: this.showTagColors })
+      console.debug(`[UI] Show tag colors: ${this.showTagColors}`)
     }
   },
 
   // Persist UI preferences
   persist: {
-    paths: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort']
+    paths: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort', 'tagColors', 'showTagColors']
   }
 })

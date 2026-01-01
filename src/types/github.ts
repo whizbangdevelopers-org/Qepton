@@ -100,3 +100,26 @@ export interface GitHubAPIConfig {
   proxyUri?: string
   userAgent?: string
 }
+
+/**
+ * Gist commit/version information from GitHub API
+ */
+export interface GistCommit {
+  url: string
+  version: string
+  user: GistOwner | null
+  change_status: {
+    total: number
+    additions: number
+    deletions: number
+  }
+  committed_at: string
+}
+
+/**
+ * Gist version with full content (from fetching a specific version)
+ */
+export interface GistVersion extends Gist {
+  // The version hash
+  version?: string
+}

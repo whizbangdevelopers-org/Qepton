@@ -8,6 +8,7 @@
     <!-- All Gists -->
     <div class="nav-section q-mb-md">
       <q-item
+        v-if="uiStore.navDrawers.allGistsVisible"
         clickable
         :active="gistsStore.activeTag === 'All Gists'"
         @click="selectTag('All Gists')"
@@ -26,6 +27,7 @@
 
       <!-- Starred Gists -->
       <q-item
+        v-if="uiStore.navDrawers.starredVisible"
         clickable
         :active="gistsStore.activeTag === 'Starred'"
         @click="selectTag('Starred')"
@@ -37,24 +39,24 @@
         <q-item-section>
           <q-item-label>Starred</q-item-label>
         </q-item-section>
-        <q-item-section side>
+        <q-item-section v-if="gistsStore.starredCount > 0" side>
           <q-badge color="amber" text-color="dark">{{ gistsStore.starredCount }}</q-badge>
         </q-item-section>
       </q-item>
 
       <!-- Recent Gists -->
       <q-item
-        v-if="gistsStore.recentCount > 0"
+        v-if="uiStore.navDrawers.recentsVisible && gistsStore.recentCount > 0"
         clickable
-        :active="gistsStore.activeTag === 'Recents'"
-        @click="selectTag('Recents')"
+        :active="gistsStore.activeTag === 'Recent'"
+        @click="selectTag('Recent')"
         class="tag-item"
       >
         <q-item-section avatar>
           <q-icon name="history" color="blue-grey" />
         </q-item-section>
         <q-item-section>
-          <q-item-label>Recents</q-item-label>
+          <q-item-label>Recent</q-item-label>
         </q-item-section>
         <q-item-section side>
           <q-badge color="blue-grey">{{ gistsStore.recentCount }}</q-badge>
@@ -206,7 +208,11 @@
             class="tag-item"
           >
             <q-item-section avatar>
-              <q-icon name="mdi-tag" size="xs" />
+              <q-icon
+                :name="uiStore.showTagColors && uiStore.tagColors[tag] ? 'mdi-tag' : 'mdi-tag-outline'"
+                size="xs"
+                :style="uiStore.showTagColors && uiStore.tagColors[tag] ? { color: uiStore.tagColors[tag] } : undefined"
+              />
             </q-item-section>
             <q-item-section>
               <q-item-label class="text-caption"> #{{ tag }} </q-item-label>
@@ -216,6 +222,37 @@
                 <q-badge color="grey-6" text-color="white" class="q-mr-xs">
                   {{ getTagCount(tag) }}
                 </q-badge>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="xs"
+                  icon="palette"
+                  @click.stop
+                >
+                  <q-tooltip>Set color</q-tooltip>
+                  <q-menu anchor="bottom right" self="top right">
+                    <div class="color-picker-menu q-pa-sm">
+                      <div class="color-swatches">
+                        <button
+                          v-for="color in TAG_COLORS"
+                          :key="color"
+                          class="color-swatch"
+                          :class="{ active: uiStore.tagColors[tag] === color }"
+                          :style="{ backgroundColor: color }"
+                          @click="uiStore.setTagColor(tag, color)"
+                        />
+                        <button
+                          class="color-swatch color-swatch-none"
+                          :class="{ active: !uiStore.tagColors[tag] }"
+                          @click="uiStore.removeTagColor(tag)"
+                        >
+                          <q-icon name="close" size="12px" />
+                        </button>
+                      </div>
+                    </div>
+                  </q-menu>
+                </q-btn>
                 <q-btn
                   flat
                   dense
@@ -251,6 +288,13 @@ import { useGistsStore } from 'src/stores/gists'
 import { useUIStore } from 'src/stores/ui'
 import { parseLangName } from 'src/services/parser'
 import UserPanel from './UserPanel.vue'
+
+const TAG_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#eab308',
+  '#84cc16', '#22c55e', '#14b8a6', '#06b6d4',
+  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
+  '#d946ef', '#ec4899', '#f43f5e', '#78716c'
+]
 
 const gistsStore = useGistsStore()
 const uiStore = useUIStore()
@@ -397,5 +441,44 @@ function handleDragEnd() {
 :deep(.section-header-expandable) {
   padding: 4px 16px;
   min-height: 36px;
+}
+
+.color-picker-menu {
+  width: 160px;
+}
+
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    transform: scale(1.15);
+  }
+
+  &.active {
+    border-color: var(--q-primary);
+  }
+}
+
+.color-swatch-none {
+  background: var(--bg-secondary);
+  border: 2px dashed var(--text-secondary);
+
+  &:hover {
+    border-color: var(--q-negative);
+  }
 }
 </style>

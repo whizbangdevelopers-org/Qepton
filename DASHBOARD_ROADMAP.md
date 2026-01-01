@@ -37,9 +37,10 @@
 | Feature             | Gisto | Cacher | GistHive | massCode | **Qepton**     |
 | ------------------- | ----- | ------ | -------- | -------- | -------------- |
 | Folders/Collections | ❌    | ✅     | ✅       | ✅       | ❌             |
-| Color-coded labels  | ❌    | ✅     | ✅       | ✅       | ❌             |
+| Color-coded labels  | ❌    | ✅     | ✅       | ✅       | ✅ Implemented |
 | Starred/Favorites   | ✅    | ✅     | ❌       | ❌       | ✅ Implemented |
 | Recent gists        | ❌    | ✅     | ❌       | ❌       | ✅ Implemented |
+| Navigation settings | ❌    | ❌     | ❌       | ❌       | ✅ Implemented |
 | Frequently used     | ❌    | ❌     | ❌       | ❌       | ❌             |
 
 **Note: Stars vs Pinned Tags distinction:**
@@ -51,8 +52,9 @@
 
 - [x] Starred Gists section - shows gists starred on GitHub
 - [x] Recents section (last 10 accessed)
-- [ ] Color-coded tags - assign colors to custom tags
+- [x] Color-coded tags - assign colors to custom tags (16-color palette, solid/outline icons)
 - [x] Sort options: by name, date modified (synced preference)
+- [x] Navigation display settings - toggle visibility of All Gists, Starred, Recent sections
 
 ---
 
@@ -75,12 +77,12 @@
 
 ### 4. Editor & Code Features
 
-| Feature                 | Cacher | GistHive | massCode | **Qepton**      |
-| ----------------------- | ------ | -------- | -------- | --------------- |
-| Monaco editor           | ❌     | ✅       | ❌       | ❌ (CodeMirror) |
-| Live preview (HTML/CSS) | ❌     | ❌       | ✅       | ❌              |
-| Prettier formatting     | ❌     | ❌       | ✅       | ✅ Implemented  |
-| Presentation mode       | ❌     | ❌       | ✅       | 🔲 Future       |
+| Feature                 | Cacher     | GistHive | massCode   | **Qepton**     |
+| ----------------------- | ---------- | -------- | ---------- | -------------- |
+| Editor                  | CodeMirror | Monaco   | CodeMirror | CodeMirror     |
+| Live preview (HTML/CSS) | ❌         | ❌       | ✅         | 🔲 Future      |
+| Prettier formatting     | ❌         | ❌       | ✅         | ✅ Implemented |
+| Presentation mode       | ❌         | ❌       | ✅         | 🔲 Future      |
 
 **Suggested additions:**
 
@@ -95,13 +97,13 @@
 | Feature         | Cacher | GistHive | **Qepton**      |
 | --------------- | ------ | -------- | --------------- |
 | Team workspaces | ✅     | ✅       | 🔲 Future       |
-| Share links     | ✅     | ✅       | ✅ (via GitHub) |
-| Version history | ❌     | ✅       | ❌              |
+| Share links     | ✅     | ✅       | ✅ Implemented  |
+| Version history | ❌     | ✅       | ✅ Implemented  |
 
 **Suggested additions:**
 
-- [ ] Quick share button with copy-to-clipboard URL
-- [ ] Version history viewer (GitHub has this data)
+- [x] Quick share button with copy-to-clipboard URL
+- [x] Version history viewer (GitHub has this data)
 
 ---
 
@@ -121,11 +123,15 @@
 
 - [x] `Cmd/Ctrl+K` - Focus search
 - [x] `Cmd/Ctrl+N` - New gist (exists)
-- [ ] `↑/↓` - Navigate gist list
-- [ ] `Enter` - Open selected gist
-- [ ] `Cmd/Ctrl+C` - Copy focused file content
-- [ ] `Cmd/Ctrl+E` - Edit current gist
-- [ ] Shortcut hints visible in UI
+- [x] `↑/↓` or `j/k` - Navigate gist list and file list
+- [x] `Enter` - Open selected gist / expand file
+- [x] `Cmd/Ctrl+C` - Copy focused file content
+- [x] `Cmd/Ctrl+E` - Edit current gist (exists)
+- [x] `Tab` - Switch focus between gist list and preview pane
+- [x] `Home/End` or `g/G` - Jump to first/last item
+- [x] `Escape` - Clear keyboard focus
+- [x] Shortcut hints visible in UI (shown when keyboard navigation active)
+- [x] Conflict resolution: shortcuts disabled when inside CodeMirror/inputs
 
 ---
 
@@ -133,9 +139,10 @@
 
 **Suggested additions:**
 
-- [ ] Dashboard header stats: Total gists, languages count, last sync time
-- [ ] Most used tags widget
-- [ ] Gist activity (recently updated)
+- [x] Dashboard stats: Total gists, languages count, last sync time
+- [x] Most used tags widget
+- [x] Gist activity chart (12 months)
+- [x] Recently updated gists
 
 ---
 
@@ -151,7 +158,7 @@
 **Current Implementation:**
 
 - [x] Settings synced via private `.qepton-settings.json` gist
-- [x] Synced settings: pinned tags, recent gists, saved searches, UI preferences
+- [x] Synced settings: pinned tags, recent gists, saved searches, UI preferences, tag colors
 - [x] Debounced writes (2s) to minimize API calls
 - [x] Works across Electron, PWA, and mobile (Capacitor)
 
@@ -170,20 +177,21 @@
 2. [x] **3-pane layout** with inline preview (no dialog)
 3. [x] **Starred Gists section** - GitHub starred gists in navigation
 4. [x] **Sort options** dropdown (name, date modified)
-5. [ ] **Keyboard navigation** through gist list
+5. [x] **Keyboard navigation** through gist list (j/k, Enter, Tab, Cmd+C)
 
 ### Should Have (Medium Impact)
 
-6. [ ] **Color-coded tags**
+6. [x] **Color-coded tags** - 16-color palette, solid icon when colored
 7. [x] **Recents section** - Last 10 viewed gists
 8. [ ] **Bulk operations** (multi-select, batch delete/tag)
-9. [ ] **Quick share/copy URL** button
-10. [ ] **Dashboard stats header**
+9. [x] **Quick share/copy URL** button
+10. [x] **Dashboard stats** (full-screen modal with charts)
+11. [x] **Navigation display settings** - Toggle All Gists/Starred/Recent visibility
 
 ### Nice to Have
 
-11. [x] Advanced search filters (date range, visibility)
-12. [x] Saved searches
-13. [ ] Version history viewer
-14. [x] Format code button (Prettier)
-15. [x] View toggle (list/card)
+12. [x] Advanced search filters (date range, visibility)
+13. [x] Saved searches
+14. [x] Version history viewer
+15. [x] Format code button (Prettier)
+16. [x] View toggle (list/card)

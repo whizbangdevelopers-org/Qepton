@@ -39,11 +39,24 @@ describe('UI Store', () => {
     it('should initialize with default navDrawers', () => {
       const store = useUIStore()
       expect(store.navDrawers).toEqual({
+        allGistsVisible: true,
+        starredVisible: true,
+        recentsVisible: true,
         languagesVisible: true,
         languagesExpanded: true,
         tagsVisible: true,
         tagsExpanded: true
       })
+    })
+
+    it('should initialize with empty tagColors', () => {
+      const store = useUIStore()
+      expect(store.tagColors).toEqual({})
+    })
+
+    it('should initialize with showTagColors true', () => {
+      const store = useUIStore()
+      expect(store.showTagColors).toBe(true)
     })
 
     it('should initialize with updateAvailable false', () => {
@@ -235,6 +248,24 @@ describe('UI Store', () => {
       expect(store.navDrawers.tagsVisible).toBe(false)
     })
 
+    it('toggleNavDrawerVisibility should toggle allGists visibility', () => {
+      const store = useUIStore()
+      store.toggleNavDrawerVisibility('allGists')
+      expect(store.navDrawers.allGistsVisible).toBe(false)
+    })
+
+    it('toggleNavDrawerVisibility should toggle starred visibility', () => {
+      const store = useUIStore()
+      store.toggleNavDrawerVisibility('starred')
+      expect(store.navDrawers.starredVisible).toBe(false)
+    })
+
+    it('toggleNavDrawerVisibility should toggle recents visibility', () => {
+      const store = useUIStore()
+      store.toggleNavDrawerVisibility('recents')
+      expect(store.navDrawers.recentsVisible).toBe(false)
+    })
+
     it('toggleNavDrawerExpanded should toggle languages expanded', () => {
       const store = useUIStore()
       store.toggleNavDrawerExpanded('languages')
@@ -245,6 +276,49 @@ describe('UI Store', () => {
       const store = useUIStore()
       store.toggleNavDrawerExpanded('tags')
       expect(store.navDrawers.tagsExpanded).toBe(false)
+    })
+  })
+
+  describe('Tag Color Actions', () => {
+    it('setTagColor should set color for a tag', () => {
+      const store = useUIStore()
+      store.setTagColor('javascript', '#f59e0b')
+      expect(store.tagColors['javascript']).toBe('#f59e0b')
+    })
+
+    it('setTagColor should overwrite existing color', () => {
+      const store = useUIStore()
+      store.setTagColor('javascript', '#f59e0b')
+      store.setTagColor('javascript', '#3b82f6')
+      expect(store.tagColors['javascript']).toBe('#3b82f6')
+    })
+
+    it('removeTagColor should remove color for a tag', () => {
+      const store = useUIStore()
+      store.tagColors['javascript'] = '#f59e0b'
+      store.removeTagColor('javascript')
+      expect(store.tagColors['javascript']).toBeUndefined()
+    })
+
+    it('removeTagColor should not error for non-existent tag', () => {
+      const store = useUIStore()
+      expect(() => store.removeTagColor('nonexistent')).not.toThrow()
+    })
+
+    it('toggleShowTagColors should toggle showTagColors', () => {
+      const store = useUIStore()
+      expect(store.showTagColors).toBe(true)
+      store.toggleShowTagColors()
+      expect(store.showTagColors).toBe(false)
+      store.toggleShowTagColors()
+      expect(store.showTagColors).toBe(true)
+    })
+
+    it('tag color changes should sync settings', async () => {
+      const store = useUIStore()
+      const { settingsSync } = await import('src/services/settings-sync')
+      store.setTagColor('test', '#ff0000')
+      expect(settingsSync.saveSettings).toHaveBeenCalled()
     })
   })
 

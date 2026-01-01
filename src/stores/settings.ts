@@ -98,6 +98,8 @@ export const useSettingsStore = defineStore('settings', {
         navDrawers: { ...uiStore.navDrawers },
         gistListView: uiStore.gistListView,
         gistSort: { ...uiStore.gistSort },
+        tagColors: { ...uiStore.tagColors },
+        showTagColors: uiStore.showTagColors,
         lastModified: Date.now()
       }
     },
@@ -130,6 +132,12 @@ export const useSettingsStore = defineStore('settings', {
       }
       if (settings.gistSort) {
         uiStore.$patch({ gistSort: settings.gistSort })
+      }
+      if (settings.tagColors) {
+        uiStore.$patch({ tagColors: settings.tagColors })
+      }
+      if (typeof settings.showTagColors === 'boolean') {
+        uiStore.$patch({ showTagColors: settings.showTagColors })
       }
 
       console.debug('[Settings] Applied settings from sync')

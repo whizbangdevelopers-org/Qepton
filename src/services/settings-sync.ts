@@ -15,6 +15,9 @@ export interface SyncableSettings {
   savedSearches: Array<{ id: string; query: string; name: string; createdAt: number }>
   immersiveMode: boolean
   navDrawers: {
+    allGistsVisible: boolean
+    starredVisible: boolean
+    recentsVisible: boolean
     languagesVisible: boolean
     languagesExpanded: boolean
     tagsVisible: boolean
@@ -25,6 +28,8 @@ export interface SyncableSettings {
     sortBy: 'updated' | 'name'
     direction: 'asc' | 'desc'
   }
+  tagColors: Record<string, string>
+  showTagColors: boolean
   lastModified: number
 }
 
@@ -146,6 +151,9 @@ class SettingsSyncService {
         savedSearches: [],
         immersiveMode: false,
         navDrawers: {
+          allGistsVisible: true,
+          starredVisible: true,
+          recentsVisible: true,
           languagesVisible: true,
           languagesExpanded: true,
           tagsVisible: true,
@@ -156,6 +164,8 @@ class SettingsSyncService {
           sortBy: 'updated',
           direction: 'desc'
         },
+        tagColors: {},
+        showTagColors: true,
         lastModified: Date.now(),
         ...local
       }

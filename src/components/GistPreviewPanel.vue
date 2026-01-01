@@ -42,6 +42,26 @@
             </div>
           </div>
           <div class="col-auto">
+            <q-btn
+              flat
+              dense
+              round
+              icon="share"
+              @click="handleShare"
+              data-test="share-gist-btn"
+            >
+              <q-tooltip>Copy link to clipboard</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
+              icon="history"
+              @click="handleVersionHistory"
+              data-test="version-history-btn"
+            >
+              <q-tooltip>Version history</q-tooltip>
+            </q-btn>
             <q-btn flat dense round icon="edit" @click="handleEdit" data-test="edit-gist-btn">
               <q-tooltip>Edit (Cmd/Ctrl+E)</q-tooltip>
             </q-btn>
@@ -105,10 +125,16 @@
       </div>
 
       <!-- File List -->
-      <div v-else class="file-list q-px-md q-pb-md">
-        <div v-for="(file, filename) in activeGist.files" :key="filename" class="file-item-wrapper">
+      <div v-else class="file-list q-px-md q-pb-md" @click="keyboardNav?.focusPreviewPane()">
+        <div
+          v-for="(file, filename) in activeGist.files"
+          :key="filename"
+          class="file-item-wrapper"
+          :class="{ 'keyboard-focused': isFileFocused(String(filename)) }"
+        >
           <q-expansion-item
-            v-model="expandedFiles[String(filename)]"
+            :model-value="getExpanded(String(filename))"
+            @update:model-value="setExpanded(String(filename), $event)"
             :group="useGroup && fileCount > 1 ? 'gist-files' : undefined"
             :default-opened="fileCount === 1"
             class="file-item"
@@ -130,14 +156,14 @@
               </q-item-section>
               <q-item-section side>
                 <q-btn
-                  v-if="canFormat(String(filename), file.language)"
+                  v-if="canFormat(String(filename), file.language ?? undefined)"
                   flat
                   dense
                   round
                   icon="auto_fix_high"
                   size="sm"
                   :loading="formattingFile === String(filename)"
-                  @click.stop="handleFormatFile(String(filename), file.content, file.language)"
+                  @click.stop="handleFormatFile(String(filename), file.content, file.language ?? undefined)"
                   data-test="format-code-button"
                 >
                   <q-tooltip>Format & Copy</q-tooltip>
@@ -189,10 +215,10 @@
 
           <!-- Preview when collapsed -->
           <div
-            v-if="!expandedFiles[String(filename)]"
+            v-if="!getExpanded(String(filename))"
             class="file-preview"
             data-test="file-preview"
-            @click="expandedFiles[String(filename)] = true"
+            @click="setExpanded(String(filename), true)"
           >
             <pre>{{ getFilePreview(file.content) }}</pre>
             <div v-if="hasMoreLines(file.content)" class="preview-fade">
@@ -206,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue'
+import { ref, computed, reactive, watch, inject, type Ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { useGistsStore } from 'src/stores/gists'
 import { useUIStore } from 'src/stores/ui'
@@ -215,15 +241,49 @@ import { parseDescription } from 'src/services/parser'
 import { renderMarkdown } from 'src/services/markdown'
 import { renderNotebook, isJupyterNotebook, isJupyterFile } from 'src/services/jupyter'
 import { formatCode, canFormat } from 'src/services/formatter'
+import type { useKeyboardNavigation } from 'src/composables/useKeyboardNavigation'
 
 const $q = useQuasar()
 const gistsStore = useGistsStore()
 const uiStore = useUIStore()
 
+// Inject keyboard navigation from parent
+const keyboardNav = inject<ReturnType<typeof useKeyboardNavigation>>('keyboardNav')
+const sharedExpandedFiles = inject<Ref<Record<string, boolean>>>('previewExpandedFiles')
+
 const displayMode = ref<'formatted' | 'raw'>('formatted')
-const expandedFiles = reactive<Record<string, boolean>>({})
+// Use shared expanded files if available, otherwise use local state
+const localExpandedFiles = reactive<Record<string, boolean>>({})
 const useGroup = ref(true) // Controls accordion group behavior
 const formattingFile = ref<string | null>(null) // Track which file is being formatted
+
+// Computed list of file names for keyboard navigation
+const fileNames = computed(() => {
+  return activeGist.value ? Object.keys(activeGist.value.files) : []
+})
+
+// Check if a file is keyboard-focused
+function isFileFocused(filename: string): boolean {
+  if (!keyboardNav) return false
+  const index = fileNames.value.indexOf(filename)
+  return keyboardNav.focusedPane.value === 'preview' && keyboardNav.focusedFileIndex.value === index
+}
+
+// Helper to get/set expanded state
+function getExpanded(filename: string): boolean {
+  if (sharedExpandedFiles?.value) {
+    return sharedExpandedFiles.value[filename] || false
+  }
+  return localExpandedFiles[filename] || false
+}
+
+function setExpanded(filename: string, value: boolean) {
+  if (sharedExpandedFiles?.value) {
+    sharedExpandedFiles.value[filename] = value
+  } else {
+    localExpandedFiles[filename] = value
+  }
+}
 
 const activeGist = computed(() => gistsStore.activeGist)
 const isLoading = computed(() => activeGist.value && gistsStore.isGistLoading(activeGist.value.id))
@@ -247,13 +307,17 @@ const gistDescription = computed(() => {
 watch(activeGist, (newGist, oldGist) => {
   if (newGist?.id !== oldGist?.id) {
     // Reset expanded files and group behavior
-    Object.keys(expandedFiles).forEach(key => delete expandedFiles[key])
+    if (sharedExpandedFiles?.value) {
+      Object.keys(sharedExpandedFiles.value).forEach(key => delete sharedExpandedFiles.value[key])
+    } else {
+      Object.keys(localExpandedFiles).forEach(key => delete localExpandedFiles[key])
+    }
     useGroup.value = true
     if (newGist?.files) {
       const fileCount = Object.keys(newGist.files).length
       if (fileCount === 1) {
         const firstFile = Object.keys(newGist.files)[0]
-        expandedFiles[firstFile] = true
+        setExpanded(firstFile, true)
       }
     }
     displayMode.value = 'formatted'
@@ -328,7 +392,7 @@ function expandAllFiles() {
     // Disable group behavior to allow multiple items to be open
     useGroup.value = false
     Object.keys(activeGist.value.files).forEach(filename => {
-      expandedFiles[filename] = true
+      setExpanded(filename, true)
     })
   }
 }
@@ -338,7 +402,7 @@ function collapseAllFiles() {
     // Re-enable group behavior and collapse all
     useGroup.value = true
     Object.keys(activeGist.value.files).forEach(filename => {
-      expandedFiles[filename] = false
+      setExpanded(filename, false)
     })
   }
 }
@@ -462,6 +526,48 @@ function handleEdit() {
 function handleDelete() {
   uiStore.openModal('deleteGist')
 }
+
+function handleVersionHistory() {
+  uiStore.openModal('versionHistory')
+}
+
+async function handleShare() {
+  if (!activeGist.value) return
+
+  const gistUrl = activeGist.value.html_url || `https://gist.github.com/${activeGist.value.id}`
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(gistUrl)
+    } else {
+      // Fallback for non-secure contexts
+      const textArea = document.createElement('textarea')
+      textArea.value = gistUrl
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      document.execCommand('copy')
+      textArea.remove()
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Link copied to clipboard',
+      icon: 'check_circle',
+      timeout: 2000
+    })
+  } catch (error) {
+    console.error('Failed to copy link:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to copy link',
+      icon: 'error'
+    })
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -497,6 +603,7 @@ function handleDelete() {
 .file-list {
   flex: 1;
   overflow-y: auto;
+  padding-top: 5px;
 }
 
 .file-item-wrapper {
@@ -505,6 +612,12 @@ function handleDelete() {
   margin-bottom: 12px;
   overflow: hidden;
   border: 1px solid var(--border-color);
+  transition: outline 0.15s ease;
+
+  &.keyboard-focused {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 1px;
+  }
 }
 
 .file-item {

@@ -400,6 +400,7 @@
               :virtual-scroll-item-size="88"
               class="gist-virtual-scroll"
               v-slot="{ item: gist, index }"
+              @click="keyboardNav.focusGistList()"
             >
               <q-item
                 :key="gist.id"
@@ -408,10 +409,21 @@
                 @click="selectGist(gist.id)"
                 data-test="gist-item"
                 class="gist-item"
-                :class="{ 'border-top': index > 0 }"
+                :class="{
+                  'border-top': index > 0,
+                  'keyboard-focused': keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
+                }"
               >
                 <q-item-section>
-                  <q-item-label class="text-weight-bold">
+                  <q-item-label class="text-weight-bold gist-title-row">
+<template v-for="tag in getGistTags(gist).slice(0, 5)" :key="tag">
+                      <q-icon
+                        :name="uiStore.showTagColors && uiStore.tagColors[tag] ? 'mdi-tag' : 'mdi-tag-outline'"
+                        size="14px"
+                        :style="uiStore.showTagColors && uiStore.tagColors[tag] ? { color: uiStore.tagColors[tag] } : undefined"
+                      />
+                      <span class="text-caption text-grey-6 q-mr-sm">#{{ tag }}</span>
+                    </template>
                     {{ getGistTitle(gist) }}
                   </q-item-label>
                   <q-item-label caption lines="2">
@@ -452,23 +464,48 @@
               </q-item>
             </q-virtual-scroll>
 
+            <!-- Keyboard Navigation Hint -->
+            <div
+              v-if="keyboardNav.focusedPane.value === 'gistList'"
+              class="keyboard-hint q-mt-sm text-caption text-grey-6"
+            >
+              <q-icon name="keyboard" size="xs" class="q-mr-xs" />
+              <kbd>j</kbd>/<kbd>k</kbd> navigate
+              <kbd>Enter</kbd> select
+              <kbd>Tab</kbd> switch pane
+              <kbd>Esc</kbd> clear
+            </div>
+            <div
+              v-if="keyboardNav.focusedPane.value === 'preview'"
+              class="keyboard-hint q-mt-sm text-caption text-grey-6"
+            >
+              <q-icon name="keyboard" size="xs" class="q-mr-xs" />
+              <kbd>j</kbd>/<kbd>k</kbd> navigate
+              <kbd>Enter</kbd> expand
+              <kbd>Cmd+C</kbd> copy
+              <kbd>Tab</kbd> switch pane
+            </div>
+
             <!-- Card View -->
-            <div v-else class="gist-card-grid">
+            <div v-if="!uiStore.isListView" class="gist-card-grid" @click="keyboardNav.focusGistList()">
               <q-card
-                v-for="gist in filteredGists"
+                v-for="(gist, index) in filteredGists"
                 :key="gist.id"
                 flat
                 bordered
                 clickable
                 class="gist-card"
-                :class="{ 'gist-card--active': gistsStore.activeGistId === gist.id }"
+                :class="{
+                  'gist-card--active': gistsStore.activeGistId === gist.id,
+                  'keyboard-focused': keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
+                }"
                 @click="selectGist(gist.id)"
                 data-test="gist-card"
               >
                 <q-card-section class="q-pb-xs">
                   <div class="row items-start no-wrap">
                     <div class="col">
-                      <div class="text-subtitle2 text-weight-bold ellipsis-2-lines">
+                      <div class="text-subtitle2 text-weight-bold ellipsis-2-lines gist-title-row">
                         {{ getGistTitle(gist) }}
                       </div>
                     </div>
@@ -480,6 +517,16 @@
                     >
                       <q-tooltip>{{ gist.public ? 'Public' : 'Secret' }}</q-tooltip>
                     </q-icon>
+                  </div>
+                  <div v-if="getGistTags(gist).length > 0" class="q-mt-xs">
+                    <template v-for="tag in getGistTags(gist).slice(0, 3)" :key="tag">
+                      <q-icon
+                        :name="uiStore.showTagColors && uiStore.tagColors[tag] ? 'mdi-tag' : 'mdi-tag-outline'"
+                        size="12px"
+                        :style="uiStore.showTagColors && uiStore.tagColors[tag] ? { color: uiStore.tagColors[tag] } : undefined"
+                      />
+                      <span class="text-caption text-grey-6 q-mr-sm">#{{ tag }}</span>
+                    </template>
                   </div>
                 </q-card-section>
 
@@ -543,7 +590,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, provide } from 'vue'
 import { useQuasar } from 'quasar'
 import { useGistsStore } from 'src/stores/gists'
 import { useSettingsStore } from 'src/stores/settings'
@@ -554,6 +601,7 @@ import GistPreviewPanel from 'src/components/GistPreviewPanel.vue'
 import { parseDescription } from 'src/services/parser'
 import { searchService } from 'src/services/search'
 import { useTagMeta } from 'src/composables/useMeta'
+import { useKeyboardNavigation } from 'src/composables/useKeyboardNavigation'
 import type { Gist } from 'src/types/github'
 import type { SavedSearch, DateRangeFilter } from 'src/types/store'
 import { parseLangName } from 'src/services/parser'
@@ -575,6 +623,9 @@ const showMobilePreview = ref(false)
 
 // Show preview pane on medium and larger screens
 const showPreviewPane = computed(() => $q.screen.gt.sm)
+
+// File expansion state (shared with GistPreviewPanel via provide)
+const previewExpandedFiles = ref<Record<string, boolean>>({})
 
 const dateRangeOptions: { label: string; value: DateRangeFilter }[] = [
   { label: 'All time', value: 'all' },
@@ -674,7 +725,12 @@ function getGistTitle(gist: Gist): string {
 
 function getGistDescription(gist: Gist): string {
   const parsed = parseDescription(gist.description)
-  return parsed.description || gist.description || 'No description'
+  return parsed.description || 'No description'
+}
+
+function getGistTags(gist: Gist): string[] {
+  const parsed = parseDescription(gist.description)
+  return parsed.customTags || []
 }
 
 function truncateFilename(filename: string, maxLength = 15): string {
@@ -717,6 +773,55 @@ async function selectGist(gistId: string) {
     await gistsStore.fetchGistContent(gistId)
   }
 }
+
+// Keyboard navigation setup (must be after filteredGists and selectGist are defined)
+const activeGistFiles = computed(() => {
+  const gist = gistsStore.activeGist
+  return gist ? Object.keys(gist.files) : []
+})
+
+const keyboardNav = useKeyboardNavigation({
+  gists: () => filteredGists.value,
+  files: () => activeGistFiles.value,
+  expandedFiles: () => previewExpandedFiles.value,
+  onSelectGist: (gistId: string) => {
+    selectGist(gistId)
+  },
+  onToggleFile: (filename: string) => {
+    // Toggle file expansion when Enter is pressed
+    previewExpandedFiles.value[filename] = !previewExpandedFiles.value[filename]
+  },
+  onCopyFile: async (content: string | undefined) => {
+    if (!content) {
+      $q.notify({
+        type: 'warning',
+        message: 'No content to copy',
+        icon: 'warning',
+        timeout: 2000
+      })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(content)
+      $q.notify({
+        type: 'positive',
+        message: 'Copied to clipboard',
+        icon: 'check_circle',
+        timeout: 1500
+      })
+    } catch {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to copy',
+        icon: 'error'
+      })
+    }
+  }
+})
+
+// Provide keyboard navigation to child components
+provide('keyboardNav', keyboardNav)
+provide('previewExpandedFiles', previewExpandedFiles)
 
 async function handleSync() {
   try {
@@ -875,6 +980,12 @@ onUnmounted(() => {
   &.border-top {
     border-top: 1px solid var(--border-color);
   }
+
+  &.keyboard-focused {
+    outline: 2px solid var(--q-primary);
+    outline-offset: -2px;
+    background: rgba(var(--q-primary-rgb), 0.08);
+  }
 }
 
 .gist-card-grid {
@@ -900,6 +1011,11 @@ onUnmounted(() => {
     border-color: var(--q-primary);
     box-shadow: 0 0 0 2px var(--q-primary);
   }
+
+  &.keyboard-focused {
+    outline: 2px dashed var(--q-primary);
+    outline-offset: 2px;
+  }
 }
 
 .ellipsis-2-lines {
@@ -910,6 +1026,28 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
+.keyboard-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+
+  kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: 'Fira Code', monospace;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  }
+}
+
 .mobile-preview-card {
   height: 100%;
   display: flex;
@@ -918,6 +1056,11 @@ onUnmounted(() => {
   .gist-preview-panel {
     flex: 1;
   }
+}
+
+.gist-tag {
+  display: inline-flex;
+  align-items: center;
 }
 
 // Responsive adjustments

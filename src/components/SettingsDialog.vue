@@ -86,6 +86,48 @@
           <q-list>
             <q-item tag="label">
               <q-item-section>
+                <q-item-label>All Gists Section</q-item-label>
+                <q-item-label caption>Show all gists in navigation</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.navDrawers.allGistsVisible"
+                  @update:model-value="uiStore.toggleNavDrawerVisibility('allGists')"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
+                <q-item-label>Starred Section</q-item-label>
+                <q-item-label caption>Show starred gists in navigation</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.navDrawers.starredVisible"
+                  @update:model-value="uiStore.toggleNavDrawerVisibility('starred')"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
+                <q-item-label>Recent Section</q-item-label>
+                <q-item-label caption>Show recent gists in navigation</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.navDrawers.recentsVisible"
+                  @update:model-value="uiStore.toggleNavDrawerVisibility('recents')"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
                 <q-item-label>Languages Section</q-item-label>
                 <q-item-label caption>Show languages in navigation</q-item-label>
               </q-item-section>
@@ -135,6 +177,20 @@
                 <q-toggle
                   :model-value="uiStore.navDrawers.tagsExpanded"
                   @update:model-value="uiStore.toggleNavDrawerExpanded('tags')"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item v-if="uiStore.navDrawers.tagsVisible" tag="label">
+              <q-item-section>
+                <q-item-label class="q-pl-md">Show Tag Colors</q-item-label>
+                <q-item-label caption class="q-pl-md">Display colored dots on tags</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.showTagColors"
+                  @update:model-value="uiStore.toggleShowTagColors"
                   color="primary"
                 />
               </q-item-section>

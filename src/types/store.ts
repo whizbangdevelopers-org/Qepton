@@ -77,9 +77,13 @@ export interface ModalStates {
   logout: boolean
   pinnedTags: boolean
   settings: boolean
+  versionHistory: boolean
 }
 
 export interface NavDrawerSettings {
+  allGistsVisible: boolean
+  starredVisible: boolean
+  recentsVisible: boolean
   languagesVisible: boolean
   languagesExpanded: boolean
   tagsVisible: boolean
@@ -123,6 +127,12 @@ export interface UIState {
 
   // Gist sort settings
   gistSort: GistSortSettings
+
+  // Tag colors (tag name -> hex color)
+  tagColors: Record<string, string>
+
+  // Show tag colors in navigation
+  showTagColors: boolean
 }
 
 export interface UpdateInfo {

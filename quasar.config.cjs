@@ -21,6 +21,7 @@ module.exports = function (ctx) {
     },
 
     boot: [
+      'pinia',
       'axios',
       'i18n',
       'app-init',

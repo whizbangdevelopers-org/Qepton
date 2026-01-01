@@ -30,9 +30,14 @@ test.describe('Gist Management', () => {
     // Click on first gist
     await page.locator('[data-test="gist-item"]').first().click()
 
-    // Should show gist detail dialog with file content
-    await expect(page.locator('.q-dialog')).toBeVisible()
-    await expect(page.locator('[data-test="file-content"]')).toBeVisible()
+    // On desktop, the preview pane shows the gist. On mobile, a dialog opens.
+    // Check for either preview panel content or mobile dialog
+    const previewPanel = page.locator('.gist-preview-panel')
+    const mobileDialog = page.locator('.q-dialog')
+    await expect(previewPanel.or(mobileDialog)).toBeVisible({ timeout: 10000 })
+
+    // The file accordion should show
+    await expect(page.locator('[data-test="file-accordion-item"]').first()).toBeVisible()
   })
 
   test('should display language tags in sidebar', async ({ page }) => {
@@ -99,15 +104,18 @@ test.describe('Gist Management', () => {
     // Wait for gist list
     await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
 
-    // Click on first gist to open detail view
+    // Click on first gist to select it
     await page.locator('[data-test="gist-item"]').first().click()
-    await expect(page.locator('.q-dialog')).toBeVisible()
 
-    // Click Edit button (in header)
-    await page.getByRole('button', { name: 'Edit' }).first().click()
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Use keyboard shortcut Cmd/Ctrl+E to open edit dialog
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+    await page.keyboard.press(`${modifier}+e`)
 
     // Edit dialog should open
-    await expect(page.locator('.edit-gist-dialog')).toBeVisible()
+    await expect(page.locator('.edit-gist-dialog')).toBeVisible({ timeout: 10000 })
     await expect(page.locator('[data-test="gist-description"]')).toBeVisible()
   })
 
@@ -115,12 +123,15 @@ test.describe('Gist Management', () => {
     // Wait for gist list
     await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
 
-    // Click on first gist to open detail view
+    // Click on first gist to select it
     await page.locator('[data-test="gist-item"]').first().click()
-    await expect(page.locator('.q-dialog')).toBeVisible()
 
-    // Click Edit button
-    await page.getByRole('button', { name: 'Edit' }).first().click()
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Use keyboard shortcut to open edit dialog
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+    await page.keyboard.press(`${modifier}+e`)
     await expect(page.locator('.edit-gist-dialog')).toBeVisible({ timeout: 10000 })
 
     // Wait for form to load with existing data
@@ -138,15 +149,17 @@ test.describe('Gist Management', () => {
     // Wait for gist list
     await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
 
-    // Click on first gist to open detail view
+    // Click on first gist to select it
     await page.locator('[data-test="gist-item"]').first().click()
-    await expect(page.locator('.q-dialog')).toBeVisible()
 
-    // Click Delete button in the gist detail dialog
-    await page.locator('.gist-detail-card').getByRole('button', { name: 'Delete' }).first().click()
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click Delete button in the preview panel header
+    await page.locator('.gist-preview-panel').getByRole('button', { name: 'Delete' }).click()
 
     // Delete confirmation dialog should open - check for the confirm button as it's unique
-    await expect(page.locator('[data-test="confirm-delete"]')).toBeVisible()
+    await expect(page.locator('[data-test="confirm-delete"]')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('[data-test="cancel-delete"]')).toBeVisible()
   })
 
@@ -154,20 +167,75 @@ test.describe('Gist Management', () => {
     // Wait for gist list
     await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
 
-    // Click on first gist to open detail view
+    // Click on first gist to select it
     await page.locator('[data-test="gist-item"]').first().click()
-    await expect(page.locator('.q-dialog')).toBeVisible()
 
-    // Click Delete button in the gist detail dialog
-    await page.locator('.gist-detail-card').getByRole('button', { name: 'Delete' }).first().click()
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click Delete button in the preview panel header
+    await page.locator('.gist-preview-panel').getByRole('button', { name: 'Delete' }).click()
 
     // Wait for delete confirmation dialog
-    await expect(page.locator('[data-test="confirm-delete"]')).toBeVisible()
+    await expect(page.locator('[data-test="confirm-delete"]')).toBeVisible({ timeout: 5000 })
 
     // Click Cancel
     await page.click('[data-test="cancel-delete"]')
 
     // Delete dialog should close - confirm button should not be visible
     await expect(page.locator('[data-test="confirm-delete"]')).not.toBeVisible()
+  })
+
+  test('should have share button that copies link to clipboard', async ({ page, context }) => {
+    // Grant clipboard permissions
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Share button should be visible
+    await expect(page.locator('[data-test="share-gist-btn"]')).toBeVisible()
+
+    // Click share button
+    await page.locator('[data-test="share-gist-btn"]').click()
+
+    // Should show success notification
+    await expect(page.getByText('Link copied to clipboard')).toBeVisible({ timeout: 5000 })
+
+    // Verify clipboard contains a gist URL
+    const clipboardContent = await page.evaluate(() => navigator.clipboard.readText())
+    expect(clipboardContent).toMatch(/gist\.github\.com/)
+  })
+
+  test('should open version history dialog', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Version history button should be visible
+    await expect(page.locator('[data-test="version-history-btn"]')).toBeVisible()
+
+    // Click version history button
+    await page.locator('[data-test="version-history-btn"]').click()
+
+    // Should show version history dialog (using the q-dialog with data-test attribute)
+    await expect(page.locator('[data-test="version-history-dialog"]')).toBeVisible({ timeout: 10000 })
+
+    // Dialog should have title (use exact match to avoid matching "Loading version history...")
+    await expect(page.getByText('Version History', { exact: true })).toBeVisible({ timeout: 5000 })
+
+    // Should show version items
+    await expect(page.locator('[data-test="version-item"]').first()).toBeVisible({ timeout: 10000 })
   })
 })

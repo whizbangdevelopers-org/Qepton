@@ -7,6 +7,27 @@ import { defineStore } from 'pinia'
 import { githubAPI } from 'src/services/github-api'
 import type { AuthState } from 'src/types/store'
 
+// Lazy imports to avoid circular dependency issues at module load time
+// These are only used inside the logout() action after Pinia is initialized
+let _useGistsStore: typeof import('./gists').useGistsStore | null = null
+let _useSearchStore: typeof import('./search').useSearchStore | null = null
+
+async function getGistsStore() {
+  if (!_useGistsStore) {
+    const module = await import('./gists')
+    _useGistsStore = module.useGistsStore
+  }
+  return _useGistsStore()
+}
+
+async function getSearchStore() {
+  if (!_useSearchStore) {
+    const module = await import('./search')
+    _useSearchStore = module.useSearchStore
+  }
+  return _useSearchStore()
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     accessToken: null,
@@ -100,13 +121,20 @@ export const useAuthStore = defineStore('auth', {
     /**
      * Logout (clear session)
      */
-    logout(): void {
+    async logout(): Promise<void> {
       this.accessToken = null
       this.user = null
       this.isAuthenticated = false
 
       // Clear from localStorage
       localStorage.removeItem('github-token')
+
+      // Reset related stores (using lazy imports to avoid circular dependency)
+      const gistsStore = await getGistsStore()
+      gistsStore.$reset()
+
+      const searchStore = await getSearchStore()
+      searchStore.$reset()
 
       console.debug('[Auth] Logged out')
     },

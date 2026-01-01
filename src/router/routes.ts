@@ -21,12 +21,6 @@ const routes: RouteRecordRaw[] = [
     children: [{ path: '', component: () => import('pages/LoginPage.vue') }]
   },
 
-  {
-    path: '/editor-demo',
-    component: () => import('layouts/AuthLayout.vue'),
-    children: [{ path: '', component: () => import('pages/EditorDemoPage.vue') }]
-  },
-
   // Always leave this as last one,
   // but you can also remove it
   {

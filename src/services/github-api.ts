@@ -5,7 +5,14 @@
  */
 
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
-import type { Gist, User, OAuthTokenResponse, GitHubAPIConfig } from 'src/types/github'
+import type {
+  Gist,
+  GistCommit,
+  GistVersion,
+  User,
+  OAuthTokenResponse,
+  GitHubAPIConfig
+} from 'src/types/github'
 
 const TAG = '[GitHub API]'
 const TIMEOUT = 20000 // 20 seconds
@@ -468,6 +475,26 @@ class GitHubAPIService {
 
     const gist = await this.createSettingsGist(settings)
     return gist.id
+  }
+
+  /**
+   * Get commits (version history) for a gist
+   */
+  async getGistCommits(gistId: string): Promise<GistCommit[]> {
+    console.debug(`${TAG} Getting commits for gist ${gistId}`)
+
+    const response = await this.client.get<GistCommit[]>(`/gists/${gistId}/commits`)
+    return response.data
+  }
+
+  /**
+   * Get a specific version of a gist
+   */
+  async getGistVersion(gistId: string, versionSha: string): Promise<GistVersion> {
+    console.debug(`${TAG} Getting version ${versionSha} for gist ${gistId}`)
+
+    const response = await this.client.get<GistVersion>(`/gists/${gistId}/${versionSha}`)
+    return response.data
   }
 }
 

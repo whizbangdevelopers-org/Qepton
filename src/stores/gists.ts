@@ -64,7 +64,7 @@ export const useGistsStore = defineStore('gists', {
           )
         }
 
-        if (tag === 'Recents') {
+        if (tag === 'Recent') {
           return state.recentGists
             .map(r => state.gists[r.id] || state.starredGists[r.id])
             .filter(Boolean)
@@ -595,6 +595,30 @@ export const useGistsStore = defineStore('gists', {
       } else {
         await this.starGist(gistId)
       }
+    },
+
+    /**
+     * Reset all gists state (called on logout)
+     */
+    $reset(): void {
+      this.gists = {}
+      this.loadedGistIds = new Set()
+      this.loadingGistId = null
+      this.gistTags = {}
+      this.pinnedTags = []
+      this.starredGistIds = new Set()
+      this.starredGists = {}
+      this.recentGists = []
+      this.activeGistId = null
+      this.activeTag = 'All Gists'
+      this.isSyncing = false
+      this.lastSyncTime = null
+      this.syncError = null
+
+      // Clear search index
+      searchService.resetIndex()
+
+      console.debug('[Gists] Store reset')
     }
   },
 

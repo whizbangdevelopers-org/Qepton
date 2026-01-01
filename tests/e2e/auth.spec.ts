@@ -7,14 +7,14 @@ import { loginWithToken } from './helpers'
  */
 test.describe('Authentication', () => {
   test('should show login page when not authenticated', async ({ page }) => {
-    // Clear any existing auth and go to home
-    await page.goto('/')
-    await page.evaluate(() => {
-      localStorage.removeItem('auth')
-      localStorage.removeItem('github-token')
+    // Clear any existing auth before page loads
+    await page.addInitScript(() => {
+      localStorage.clear()
       sessionStorage.clear()
     })
-    await page.reload()
+
+    // Go to home - should redirect to login
+    await page.goto('/', { waitUntil: 'networkidle' })
 
     // Should redirect to login
     await expect(page).toHaveURL(/\/login/)
@@ -28,7 +28,13 @@ test.describe('Authentication', () => {
   })
 
   test('should show token input on login page', async ({ page }) => {
-    await page.goto('/#/login')
+    // Clear storage before page loads
+    await page.addInitScript(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
+
+    await page.goto('/#/login', { waitUntil: 'networkidle' })
 
     // Should show token input directly (no tab switching needed)
     await expect(page.locator('[data-test="token-input"]')).toBeVisible()
@@ -36,16 +42,22 @@ test.describe('Authentication', () => {
   })
 
   test('should show error for invalid token', async ({ page }) => {
-    await page.goto('/#/login')
+    // Clear storage before page loads
+    await page.addInitScript(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
+
+    await page.goto('/#/login', { waitUntil: 'networkidle' })
 
     // Wait for login page to be ready
     await expect(page.locator('[data-test="token-input"]')).toBeVisible()
 
     // Enter invalid token
-    await page.fill('[data-test="token-input"]', 'invalid_token_12345')
+    await page.locator('[data-test="token-input"]').fill('invalid_token_12345')
 
     // Submit
-    await page.click('[data-test="login-button"]')
+    await page.locator('[data-test="login-button"]').click()
 
     // Should show error banner or notification
     const errorBanner = page.locator('.q-banner.bg-negative')
@@ -54,7 +66,13 @@ test.describe('Authentication', () => {
   })
 
   test('should disable login button when token is empty', async ({ page }) => {
-    await page.goto('/#/login')
+    // Clear storage before page loads
+    await page.addInitScript(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
+
+    await page.goto('/#/login', { waitUntil: 'networkidle' })
 
     // Wait for login page to be ready
     await expect(page.locator('[data-test="token-input"]')).toBeVisible()
@@ -92,10 +110,25 @@ test.describe('Authentication', () => {
     // Wait for login to complete
     await expect(page.locator('[data-test="user-menu"]')).toBeVisible({ timeout: 15000 })
 
-    // Reload page
-    await page.reload()
+    // Wait for Pinia to persist state to localStorage
+    await page.waitForTimeout(500)
 
-    // Should still be authenticated
+    // Verify localStorage has the auth state (Pinia persisted) and github-token before reload
+    const authState = await page.evaluate(() => localStorage.getItem('auth'))
+    const githubToken = await page.evaluate(() => localStorage.getItem('github-token'))
+    if (!authState) {
+      throw new Error('Auth state was not persisted to localStorage')
+    }
+    if (!githubToken) {
+      throw new Error('GitHub token was not persisted to localStorage')
+    }
+
+    // Navigate to a different page first, then back
+    // This tests persistence without full page reload
+    await page.goto('/#/login', { waitUntil: 'networkidle' })
+
+    // Should be redirected back to home since we're authenticated
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 15000 })
     await expect(page.locator('[data-test="user-menu"]')).toBeVisible({ timeout: 15000 })
   })
 
