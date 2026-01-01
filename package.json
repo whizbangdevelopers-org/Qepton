@@ -11,6 +11,7 @@
     "dev": "quasar dev",
     "dev:electron": "quasar dev -m electron",
     "dev:pwa": "quasar dev -m pwa",
+    "dev:capacitor": "quasar dev -m capacitor",
     "build": "quasar build",
     "build:electron": "quasar build -m electron",
     "build:pwa": "quasar build -m pwa",
