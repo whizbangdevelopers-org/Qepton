@@ -361,6 +361,12 @@
               </div>
             </div>
 
+            <!-- Bulk Actions Bar -->
+            <BulkActionsBar
+              v-if="uiStore.bulkOperationsEnabled"
+              :visible-gist-ids="filteredGists.map(g => g.id)"
+            />
+
             <!-- Loading State -->
             <div
               v-if="gistsStore.isSyncing && !isPullRefreshing && !hasGists"
@@ -411,9 +417,17 @@
                 class="gist-item"
                 :class="{
                   'border-top': index > 0,
-                  'keyboard-focused': keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
+                  'keyboard-focused': uiStore.showKeyboardFocus && keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
                 }"
               >
+                <q-item-section v-if="uiStore.bulkOperationsEnabled" side>
+                  <q-checkbox
+                    :model-value="gistsStore.isGistSelected(gist.id)"
+                    @update:model-value="gistsStore.toggleGistSelection(gist.id)"
+                    @click.stop
+                    data-test="gist-checkbox"
+                  />
+                </q-item-section>
                 <q-item-section>
                   <q-item-label class="text-weight-bold gist-title-row">
 <template v-for="tag in getGistTags(gist).slice(0, 5)" :key="tag">
@@ -464,28 +478,6 @@
               </q-item>
             </q-virtual-scroll>
 
-            <!-- Keyboard Navigation Hint -->
-            <div
-              v-if="keyboardNav.focusedPane.value === 'gistList'"
-              class="keyboard-hint q-mt-sm text-caption text-grey-6"
-            >
-              <q-icon name="keyboard" size="xs" class="q-mr-xs" />
-              <kbd>j</kbd>/<kbd>k</kbd> navigate
-              <kbd>Enter</kbd> select
-              <kbd>Tab</kbd> switch pane
-              <kbd>Esc</kbd> clear
-            </div>
-            <div
-              v-if="keyboardNav.focusedPane.value === 'preview'"
-              class="keyboard-hint q-mt-sm text-caption text-grey-6"
-            >
-              <q-icon name="keyboard" size="xs" class="q-mr-xs" />
-              <kbd>j</kbd>/<kbd>k</kbd> navigate
-              <kbd>Enter</kbd> expand
-              <kbd>Cmd+C</kbd> copy
-              <kbd>Tab</kbd> switch pane
-            </div>
-
             <!-- Card View -->
             <div v-if="!uiStore.isListView" class="gist-card-grid" @click="keyboardNav.focusGistList()">
               <q-card
@@ -497,13 +489,21 @@
                 class="gist-card"
                 :class="{
                   'gist-card--active': gistsStore.activeGistId === gist.id,
-                  'keyboard-focused': keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
+                  'keyboard-focused': uiStore.showKeyboardFocus && keyboardNav.focusedPane.value === 'gistList' && keyboardNav.focusedGistIndex.value === index
                 }"
                 @click="selectGist(gist.id)"
                 data-test="gist-card"
               >
                 <q-card-section class="q-pb-xs">
                   <div class="row items-start no-wrap">
+                    <q-checkbox
+                      v-if="uiStore.bulkOperationsEnabled"
+                      :model-value="gistsStore.isGistSelected(gist.id)"
+                      @update:model-value="gistsStore.toggleGistSelection(gist.id)"
+                      @click.stop
+                      class="q-mr-sm"
+                      data-test="gist-card-checkbox"
+                    />
                     <div class="col">
                       <div class="text-subtitle2 text-weight-bold ellipsis-2-lines gist-title-row">
                         {{ getGistTitle(gist) }}
@@ -598,6 +598,7 @@ import { useAuthStore } from 'src/stores/auth'
 import { useSearchStore } from 'src/stores/search'
 import { useUIStore } from 'src/stores/ui'
 import GistPreviewPanel from 'src/components/GistPreviewPanel.vue'
+import BulkActionsBar from 'src/components/BulkActionsBar.vue'
 import { parseDescription } from 'src/services/parser'
 import { searchService } from 'src/services/search'
 import { useTagMeta } from 'src/composables/useMeta'
@@ -1026,28 +1027,6 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
-.keyboard-hint {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 12px;
-  background: var(--bg-primary);
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-
-  kbd {
-    display: inline-block;
-    padding: 2px 6px;
-    font-size: 11px;
-    font-family: 'Fira Code', monospace;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
-  }
-}
-
 .mobile-preview-card {
   height: 100%;
   display: flex;
@@ -1061,6 +1040,10 @@ onUnmounted(() => {
 .gist-tag {
   display: inline-flex;
   align-items: center;
+}
+
+:deep(.q-btn-toggle .q-btn) {
+  min-width: 54px;
 }
 
 // Responsive adjustments

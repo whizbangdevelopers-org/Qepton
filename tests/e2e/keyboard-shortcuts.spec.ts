@@ -2,6 +2,88 @@ import { test, expect } from '@playwright/test'
 import { loginWithToken, getModifierKey } from './helpers'
 
 /**
+ * Help Dialog Tests
+ */
+test.describe('Help Dialog', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginWithToken(page)
+  })
+
+  test('should have help button in header', async ({ page }) => {
+    await expect(page.locator('[data-test="help-button"]')).toBeVisible()
+  })
+
+  test('should open help dialog when clicking help button', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('should display shortcuts tab by default', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Should show keyboard shortcuts
+    await expect(page.getByText('Create new gist')).toBeVisible()
+    await expect(page.getByText('Edit active gist')).toBeVisible()
+  })
+
+  test('should display keyboard navigation shortcuts in help', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Should show keyboard navigation shortcuts
+    await expect(page.getByText('Navigate list up/down')).toBeVisible()
+    await expect(page.getByText('Select focused item / Expand file')).toBeVisible()
+    await expect(page.getByText('Switch between gist list and preview')).toBeVisible()
+  })
+
+  test('should have features tab', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Click features tab
+    await page.getByRole('tab', { name: 'Features' }).click()
+
+    // Should show features
+    await expect(page.getByText('GitHub Gist Integration')).toBeVisible()
+    await expect(page.getByText('Smart Tagging')).toBeVisible()
+  })
+
+  test('should have languages tab', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Click languages tab
+    await page.getByRole('tab', { name: 'Languages' }).click()
+
+    // Should show supported languages count
+    await expect(page.getByText(/\d+ supported languages/)).toBeVisible()
+  })
+
+  test('should have tips tab', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Click tips tab
+    await page.getByRole('tab', { name: 'Tips' }).click()
+
+    // Should show tips
+    await expect(page.getByText(/Use #tag-name/)).toBeVisible()
+  })
+
+  test('should close help dialog with close button', async ({ page }) => {
+    await page.locator('[data-test="help-button"]').click()
+    await expect(page.locator('[data-test="help-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Click close button
+    await page.locator('[data-test="help-dialog"] button[aria-label="Close"]').click()
+
+    // Dialog should close
+    await expect(page.locator('[data-test="help-dialog"]')).not.toBeVisible()
+  })
+})
+
+/**
  * Keyboard Shortcuts Tests using real GitHub API
  * Uses the wriver4-test account configured in e2e-docker/.env
  */
@@ -59,14 +141,75 @@ test.describe('Keyboard Shortcuts', () => {
 })
 
 /**
- * Keyboard Navigation Tests
- * Tests for vim-style navigation through gist list and file preview
+ * Keyboard Focus Setting Tests
  */
-test.describe('Keyboard Navigation', () => {
+test.describe('Keyboard Focus Setting', () => {
   test.beforeEach(async ({ page }) => {
     await loginWithToken(page)
-    // Wait for gists to load
     await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+  })
+
+  test('keyboard focus indicator should be hidden by default', async ({ page }) => {
+    // Click on the gist list area
+    await page.locator('.gist-virtual-scroll').click()
+    await page.waitForTimeout(300)
+
+    // No keyboard focus indicator should be visible (setting is off by default)
+    const focusedItems = await page.locator('.gist-item.keyboard-focused').count()
+    expect(focusedItems).toBe(0)
+  })
+
+  test('should have keyboard focus setting in settings dialog', async ({ page }) => {
+    // Open settings
+    await page.locator('[data-test="settings-button"]').click()
+    await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Should show keyboard focus toggle
+    await expect(page.getByText('Keyboard Focus Indicator')).toBeVisible()
+    await expect(page.getByText('Show visual indicator for keyboard navigation')).toBeVisible()
+  })
+
+  test('enabling keyboard focus setting should show focus indicator', async ({ page }) => {
+    // Open settings and enable keyboard focus
+    await page.locator('[data-test="settings-button"]').click()
+    await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible({ timeout: 5000 })
+
+    // Click the toggle for keyboard focus
+    await page.getByText('Keyboard Focus Indicator').click()
+    await page.waitForTimeout(100)
+
+    // Close settings
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-test="settings-dialog"]')).not.toBeVisible()
+
+    // Click on gist list to activate keyboard navigation
+    await page.locator('.gist-virtual-scroll').click()
+    await page.waitForTimeout(300)
+
+    // Now keyboard focus indicator should be visible
+    await expect(page.locator('.gist-item.keyboard-focused').first()).toBeVisible({ timeout: 5000 })
+  })
+})
+
+/**
+ * Keyboard Navigation Tests
+ * Tests for vim-style navigation through gist list and file preview
+ * Note: These tests enable the keyboard focus setting to verify visual indicators
+ */
+test.describe('Keyboard Navigation', () => {
+  async function enableKeyboardFocus(page: import('@playwright/test').Page) {
+    await page.locator('[data-test="settings-button"]').click()
+    await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible({ timeout: 5000 })
+    await page.getByText('Keyboard Focus Indicator').click()
+    await page.waitForTimeout(100)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-test="settings-dialog"]')).not.toBeVisible()
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await loginWithToken(page)
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+    await enableKeyboardFocus(page)
   })
 
   test('clicking gist list should activate keyboard focus', async ({ page }) => {
@@ -151,15 +294,6 @@ test.describe('Keyboard Navigation', () => {
     // Gist list should no longer have keyboard focus
     const gistListFocused = await page.locator('.gist-item.keyboard-focused').count()
     expect(gistListFocused).toBe(0)
-  })
-
-  test('keyboard hint should appear when navigation is active', async ({ page }) => {
-    // Click to activate keyboard navigation
-    await page.locator('.gist-virtual-scroll').click()
-    await expect(page.locator('.gist-item.keyboard-focused').first()).toBeVisible({ timeout: 5000 })
-
-    // Keyboard hint should be visible
-    await expect(page.locator('.keyboard-hint')).toBeVisible()
   })
 
   test('keyboard navigation should not work when search input is focused', async ({ page }) => {

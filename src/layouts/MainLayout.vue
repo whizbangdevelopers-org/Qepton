@@ -44,6 +44,18 @@
           <q-tooltip>Toggle Theme</q-tooltip>
         </q-btn>
 
+        <!-- Help Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="help"
+          @click="uiStore.openModal('help')"
+          data-test="help-button"
+        >
+          <q-tooltip>Help</q-tooltip>
+        </q-btn>
+
         <!-- Settings Button -->
         <q-btn
           flat
@@ -93,7 +105,9 @@
     <DeleteGistDialog />
     <SearchDialog />
     <AboutDialog />
+    <CloneGistDialog />
     <DashboardDialog />
+    <HelpDialog />
     <LogoutDialog />
     <PinnedTagsDialog />
     <RawGistDialog />
@@ -114,7 +128,9 @@ import EditGistDialog from 'src/components/EditGistDialog.vue'
 import DeleteGistDialog from 'src/components/DeleteGistDialog.vue'
 import SearchDialog from 'src/components/SearchDialog.vue'
 import AboutDialog from 'src/components/AboutDialog.vue'
+import CloneGistDialog from 'src/components/CloneGistDialog.vue'
 import DashboardDialog from 'src/components/DashboardDialog.vue'
+import HelpDialog from 'src/components/HelpDialog.vue'
 import LogoutDialog from 'src/components/LogoutDialog.vue'
 import PinnedTagsDialog from 'src/components/PinnedTagsDialog.vue'
 import RawGistDialog from 'src/components/RawGistDialog.vue'

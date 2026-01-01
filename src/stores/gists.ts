@@ -24,6 +24,7 @@ export const useGistsStore = defineStore('gists', {
     recentGists: [],
     activeGistId: null,
     activeTag: 'All Gists',
+    selectedGistIds: new Set(),
     isSyncing: false,
     lastSyncTime: null,
     syncError: null
@@ -198,7 +199,32 @@ export const useGistsStore = defineStore('gists', {
       state =>
       (gistId: string): boolean => {
         return state.loadingGistId === gistId
-      }
+      },
+
+    /**
+     * Check if a gist is selected (for bulk operations)
+     */
+    isGistSelected:
+      state =>
+      (gistId: string): boolean => {
+        return state.selectedGistIds.has(gistId)
+      },
+
+    /**
+     * Get count of selected gists
+     */
+    selectedCount: (state): number => {
+      return state.selectedGistIds.size
+    },
+
+    /**
+     * Get selected gists as array
+     */
+    selectedGistsArray: (state): Gist[] => {
+      return Array.from(state.selectedGistIds)
+        .map(id => state.gists[id])
+        .filter(Boolean)
+    }
   },
 
   actions: {
@@ -598,6 +624,65 @@ export const useGistsStore = defineStore('gists', {
     },
 
     /**
+     * Toggle gist selection (for bulk operations)
+     */
+    toggleGistSelection(gistId: string): void {
+      if (this.selectedGistIds.has(gistId)) {
+        this.selectedGistIds.delete(gistId)
+      } else {
+        this.selectedGistIds.add(gistId)
+      }
+    },
+
+    /**
+     * Select a gist (for bulk operations)
+     */
+    selectGist(gistId: string): void {
+      this.selectedGistIds.add(gistId)
+    },
+
+    /**
+     * Deselect a gist (for bulk operations)
+     */
+    deselectGist(gistId: string): void {
+      this.selectedGistIds.delete(gistId)
+    },
+
+    /**
+     * Select all gists from a given array
+     */
+    selectAllGists(gistIds: string[]): void {
+      gistIds.forEach(id => this.selectedGistIds.add(id))
+    },
+
+    /**
+     * Deselect all gists
+     */
+    deselectAllGists(): void {
+      this.selectedGistIds.clear()
+    },
+
+    /**
+     * Bulk delete selected gists
+     */
+    async bulkDeleteGists(gistIds: string[]): Promise<{ success: string[]; failed: string[] }> {
+      const success: string[] = []
+      const failed: string[] = []
+
+      for (const gistId of gistIds) {
+        try {
+          await this.deleteGist(gistId)
+          success.push(gistId)
+          this.selectedGistIds.delete(gistId)
+        } catch {
+          failed.push(gistId)
+        }
+      }
+
+      return { success, failed }
+    },
+
+    /**
      * Reset all gists state (called on logout)
      */
     $reset(): void {
@@ -611,6 +696,7 @@ export const useGistsStore = defineStore('gists', {
       this.recentGists = []
       this.activeGistId = null
       this.activeTag = 'All Gists'
+      this.selectedGistIds = new Set()
       this.isSyncing = false
       this.lastSyncTime = null
       this.syncError = null

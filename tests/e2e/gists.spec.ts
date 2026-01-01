@@ -238,4 +238,118 @@ test.describe('Gist Management', () => {
     // Should show version items
     await expect(page.locator('[data-test="version-item"]').first()).toBeVisible({ timeout: 10000 })
   })
+
+  test('should have change visibility button', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Change visibility button should be visible
+    await expect(page.locator('[data-test="change-visibility-btn"]')).toBeVisible()
+  })
+
+  test('should open clone gist dialog when clicking change visibility', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click change visibility button
+    await page.locator('[data-test="change-visibility-btn"]').click()
+
+    // Clone gist dialog should open
+    await expect(page.getByText('Change Visibility')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("GitHub doesn't allow changing gist visibility directly")).toBeVisible()
+  })
+
+  test('should show current and target visibility in clone dialog', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click change visibility button
+    await page.locator('[data-test="change-visibility-btn"]').click()
+
+    // Should show Current and New labels
+    await expect(page.getByText('Current')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('New')).toBeVisible()
+
+    // Should show visibility labels (Public or Private)
+    const hasPublic = await page.getByText('Public').count()
+    const hasPrivate = await page.getByText('Private').count()
+    expect(hasPublic + hasPrivate).toBeGreaterThanOrEqual(2)
+  })
+
+  test('should have delete original checkbox in clone dialog', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click change visibility button
+    await page.locator('[data-test="change-visibility-btn"]').click()
+
+    // Should have delete original checkbox
+    await expect(page.getByText('Delete the original gist after cloning')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('should show warning when delete original is checked', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click change visibility button
+    await page.locator('[data-test="change-visibility-btn"]').click()
+    await expect(page.getByText('Change Visibility')).toBeVisible({ timeout: 5000 })
+
+    // Check the delete original checkbox
+    await page.getByText('Delete the original gist after cloning').click()
+
+    // Warning banner should appear
+    await expect(page.getByText('permanently deleted')).toBeVisible({ timeout: 3000 })
+  })
+
+  test('should cancel clone gist dialog', async ({ page }) => {
+    // Wait for gist list
+    await expect(page.locator('[data-test="gist-item"]').first()).toBeVisible({ timeout: 15000 })
+
+    // Click on first gist to select it
+    await page.locator('[data-test="gist-item"]').first().click()
+
+    // Wait for preview panel to show the gist
+    await expect(page.locator('.gist-preview-panel')).toBeVisible({ timeout: 10000 })
+
+    // Click change visibility button
+    await page.locator('[data-test="change-visibility-btn"]').click()
+    await expect(page.getByText('Change Visibility')).toBeVisible({ timeout: 5000 })
+
+    // Click cancel
+    await page.locator('[data-test="cancel-clone"]').click()
+
+    // Dialog should close
+    await expect(page.getByText('Change Visibility')).not.toBeVisible()
+  })
 })

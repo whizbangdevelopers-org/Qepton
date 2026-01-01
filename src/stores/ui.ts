@@ -20,9 +20,11 @@ export const useUIStore = defineStore('ui', {
       newGist: false,
       editGist: false,
       deleteGist: false,
+      cloneGist: false,
       rawGist: false,
       about: false,
       dashboard: false,
+      help: false,
       search: false,
       logout: false,
       pinnedTags: false,
@@ -50,7 +52,9 @@ export const useUIStore = defineStore('ui', {
       direction: 'desc'
     },
     tagColors: {},
-    showTagColors: true
+    showTagColors: true,
+    bulkOperationsEnabled: false,
+    showKeyboardFocus: false
   }),
 
   getters: {
@@ -343,11 +347,26 @@ export const useUIStore = defineStore('ui', {
       this.showTagColors = !this.showTagColors
       settingsSync.saveSettings({ showTagColors: this.showTagColors })
       console.debug(`[UI] Show tag colors: ${this.showTagColors}`)
+    },
+
+    toggleBulkOperations(): void {
+      this.bulkOperationsEnabled = !this.bulkOperationsEnabled
+      console.debug(`[UI] Bulk operations: ${this.bulkOperationsEnabled}`)
+    },
+
+    setBulkOperations(enabled: boolean): void {
+      this.bulkOperationsEnabled = enabled
+      console.debug(`[UI] Bulk operations: ${this.bulkOperationsEnabled}`)
+    },
+
+    toggleKeyboardFocus(): void {
+      this.showKeyboardFocus = !this.showKeyboardFocus
+      console.debug(`[UI] Keyboard focus: ${this.showKeyboardFocus}`)
     }
   },
 
   // Persist UI preferences
   persist: {
-    paths: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort', 'tagColors', 'showTagColors']
+    paths: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort', 'tagColors', 'showTagColors', 'bulkOperationsEnabled', 'showKeyboardFocus']
   }
 })

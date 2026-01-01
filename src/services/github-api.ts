@@ -496,6 +496,36 @@ class GitHubAPIService {
     const response = await this.client.get<GistVersion>(`/gists/${gistId}/${versionSha}`)
     return response.data
   }
+
+  /**
+   * Clone a gist with different visibility
+   * GitHub doesn't allow changing visibility, so we create a new gist
+   * Note: Version history cannot be preserved (GitHub limitation)
+   */
+  async cloneGist(
+    gistId: string,
+    newVisibility: 'public' | 'private'
+  ): Promise<Gist> {
+    console.debug(`${TAG} Cloning gist ${gistId} as ${newVisibility}`)
+
+    const sourceGist = await this.getSingleGist(gistId)
+
+    const files: Record<string, { content: string }> = {}
+    for (const [filename, file] of Object.entries(sourceGist.files)) {
+      if (file?.content) {
+        files[filename] = { content: file.content }
+      }
+    }
+
+    const newGist = await this.createGist(
+      sourceGist.description || '',
+      files,
+      newVisibility === 'public'
+    )
+
+    console.debug(`${TAG} Cloned gist ${gistId} -> ${newGist.id}`)
+    return newGist
+  }
 }
 
 // Export singleton instance

@@ -49,6 +49,9 @@ export interface GistsState {
   activeGistId: string | null
   activeTag: string
 
+  // Bulk selection (for bulk operations)
+  selectedGistIds: Set<string>
+
   // Sync state
   isSyncing: boolean
   lastSyncTime: number | null
@@ -70,9 +73,11 @@ export interface ModalStates {
   newGist: boolean
   editGist: boolean
   deleteGist: boolean
+  cloneGist: boolean
   rawGist: boolean
   about: boolean
   dashboard: boolean
+  help: boolean
   search: boolean
   logout: boolean
   pinnedTags: boolean
@@ -133,6 +138,12 @@ export interface UIState {
 
   // Show tag colors in navigation
   showTagColors: boolean
+
+  // Bulk operations mode
+  bulkOperationsEnabled: boolean
+
+  // Show keyboard focus indicator
+  showKeyboardFocus: boolean
 }
 
 export interface UpdateInfo {

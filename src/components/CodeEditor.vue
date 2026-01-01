@@ -40,7 +40,31 @@ import { less } from '@codemirror/lang-less'
 import { angular } from '@codemirror/lang-angular'
 import { liquid } from '@codemirror/lang-liquid'
 import { wast } from '@codemirror/lang-wast'
+import { sass } from '@codemirror/lang-sass'
 import { nix } from '@replit/codemirror-lang-nix'
+import { StreamLanguage } from '@codemirror/language'
+import { shell } from '@codemirror/legacy-modes/mode/shell'
+import { ruby } from '@codemirror/legacy-modes/mode/ruby'
+import { swift } from '@codemirror/legacy-modes/mode/swift'
+import { kotlin, scala, csharp, dart } from '@codemirror/legacy-modes/mode/clike'
+import { r } from '@codemirror/legacy-modes/mode/r'
+import { lua } from '@codemirror/legacy-modes/mode/lua'
+import { perl } from '@codemirror/legacy-modes/mode/perl'
+import { haskell } from '@codemirror/legacy-modes/mode/haskell'
+import { erlang } from '@codemirror/legacy-modes/mode/erlang'
+import { clojure } from '@codemirror/legacy-modes/mode/clojure'
+import { groovy } from '@codemirror/legacy-modes/mode/groovy'
+import { powerShell } from '@codemirror/legacy-modes/mode/powershell'
+import { dockerFile } from '@codemirror/legacy-modes/mode/dockerfile'
+import { toml } from '@codemirror/legacy-modes/mode/toml'
+import { commonLisp } from '@codemirror/legacy-modes/mode/commonlisp'
+import { scheme } from '@codemirror/legacy-modes/mode/scheme'
+import { fortran } from '@codemirror/legacy-modes/mode/fortran'
+import { cobol } from '@codemirror/legacy-modes/mode/cobol'
+import { pascal } from '@codemirror/legacy-modes/mode/pascal'
+import { diff } from '@codemirror/legacy-modes/mode/diff'
+import { protobuf } from '@codemirror/legacy-modes/mode/protobuf'
+import { nginx } from '@codemirror/legacy-modes/mode/nginx'
 import { getLanguageFromFilename } from 'src/utils/languageDetection'
 
 interface Props {
@@ -93,9 +117,10 @@ function getLanguageExtension(lang: string) {
     case 'html':
       return html()
     case 'css':
+      return css()
     case 'scss':
     case 'sass':
-      return css()
+      return sass()
     case 'less':
       return less()
     case 'markdown':
@@ -124,6 +149,57 @@ function getLanguageExtension(lang: string) {
       return liquid()
     case 'angular':
       return angular()
+    case 'shell':
+    case 'bash':
+      return StreamLanguage.define(shell)
+    case 'ruby':
+      return StreamLanguage.define(ruby)
+    case 'swift':
+      return StreamLanguage.define(swift)
+    case 'kotlin':
+      return StreamLanguage.define(kotlin)
+    case 'scala':
+      return StreamLanguage.define(scala)
+    case 'r':
+      return StreamLanguage.define(r)
+    case 'lua':
+      return StreamLanguage.define(lua)
+    case 'perl':
+      return StreamLanguage.define(perl)
+    case 'haskell':
+      return StreamLanguage.define(haskell)
+    case 'erlang':
+      return StreamLanguage.define(erlang)
+    case 'clojure':
+      return StreamLanguage.define(clojure)
+    case 'groovy':
+      return StreamLanguage.define(groovy)
+    case 'powershell':
+      return StreamLanguage.define(powerShell)
+    case 'dockerfile':
+      return StreamLanguage.define(dockerFile)
+    case 'toml':
+      return StreamLanguage.define(toml)
+    case 'lisp':
+      return StreamLanguage.define(commonLisp)
+    case 'scheme':
+      return StreamLanguage.define(scheme)
+    case 'fortran':
+      return StreamLanguage.define(fortran)
+    case 'cobol':
+      return StreamLanguage.define(cobol)
+    case 'pascal':
+      return StreamLanguage.define(pascal)
+    case 'diff':
+      return StreamLanguage.define(diff)
+    case 'protobuf':
+      return StreamLanguage.define(protobuf)
+    case 'nginx':
+      return StreamLanguage.define(nginx)
+    case 'csharp':
+      return StreamLanguage.define(csharp)
+    case 'dart':
+      return StreamLanguage.define(dart)
     default:
       return null
   }

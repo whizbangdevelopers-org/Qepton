@@ -77,6 +77,34 @@
                 />
               </q-item-section>
             </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
+                <q-item-label>Bulk Operations</q-item-label>
+                <q-item-label caption>Enable multi-select for bulk actions</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.bulkOperationsEnabled"
+                  @update:model-value="uiStore.toggleBulkOperations"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
+                <q-item-label>Keyboard Focus Indicator</q-item-label>
+                <q-item-label caption>Show visual indicator for keyboard navigation</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.showKeyboardFocus"
+                  @update:model-value="uiStore.toggleKeyboardFocus"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
           </q-list>
 
           <q-separator class="q-my-md" />

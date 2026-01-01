@@ -8,8 +8,8 @@ import {
 
 describe('Languages Service', () => {
   describe('SUPPORTED_LANGUAGES', () => {
-    it('should have 25 supported languages', () => {
-      expect(SUPPORTED_LANGUAGES).toHaveLength(25)
+    it('should have 50 supported languages', () => {
+      expect(SUPPORTED_LANGUAGES).toHaveLength(50)
     })
 
     it('should have unique language ids', () => {
@@ -42,8 +42,8 @@ describe('Languages Service', () => {
   })
 
   describe('UNSUPPORTED_LANGUAGES', () => {
-    it('should have 18 unsupported languages', () => {
-      expect(UNSUPPORTED_LANGUAGES).toHaveLength(18)
+    it('should have 10 unsupported languages', () => {
+      expect(UNSUPPORTED_LANGUAGES).toHaveLength(10)
     })
 
     it('should not overlap with supported languages', () => {

@@ -340,4 +340,60 @@ describe('UI Store', () => {
       expect(store.updateInfo).toBeNull()
     })
   })
+
+  describe('Keyboard Focus Setting', () => {
+    it('should initialize with showKeyboardFocus false', () => {
+      const store = useUIStore()
+      expect(store.showKeyboardFocus).toBe(false)
+    })
+
+    it('toggleKeyboardFocus should toggle showKeyboardFocus', () => {
+      const store = useUIStore()
+      expect(store.showKeyboardFocus).toBe(false)
+      store.toggleKeyboardFocus()
+      expect(store.showKeyboardFocus).toBe(true)
+      store.toggleKeyboardFocus()
+      expect(store.showKeyboardFocus).toBe(false)
+    })
+  })
+
+  describe('Clone Gist Modal', () => {
+    it('should initialize with cloneGist modal closed', () => {
+      const store = useUIStore()
+      expect(store.modals.cloneGist).toBe(false)
+    })
+
+    it('openModal should open cloneGist modal', () => {
+      const store = useUIStore()
+      store.openModal('cloneGist')
+      expect(store.modals.cloneGist).toBe(true)
+    })
+
+    it('closeModal should close cloneGist modal', () => {
+      const store = useUIStore()
+      store.modals.cloneGist = true
+      store.closeModal('cloneGist')
+      expect(store.modals.cloneGist).toBe(false)
+    })
+  })
+
+  describe('Help Modal', () => {
+    it('should initialize with help modal closed', () => {
+      const store = useUIStore()
+      expect(store.modals.help).toBe(false)
+    })
+
+    it('openModal should open help modal', () => {
+      const store = useUIStore()
+      store.openModal('help')
+      expect(store.modals.help).toBe(true)
+    })
+
+    it('closeModal should close help modal', () => {
+      const store = useUIStore()
+      store.modals.help = true
+      store.closeModal('help')
+      expect(store.modals.help).toBe(false)
+    })
+  })
 })

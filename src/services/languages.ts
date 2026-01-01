@@ -29,28 +29,45 @@ export const SUPPORTED_LANGUAGES: LanguageDefinition[] = [
   { id: 'wast', name: 'WebAssembly', extensions: ['wast', 'wat'] },
   { id: 'nix', name: 'Nix', extensions: ['nix'] },
   { id: 'liquid', name: 'Liquid', extensions: ['liquid'] },
-  { id: 'angular', name: 'Angular', extensions: ['ng'] }
-]
-
-export const UNSUPPORTED_LANGUAGES: LanguageDefinition[] = [
+  { id: 'angular', name: 'Angular', extensions: ['ng'] },
   { id: 'shell', name: 'Shell/Bash', extensions: ['sh', 'bash', 'zsh'] },
   { id: 'ruby', name: 'Ruby', extensions: ['rb'] },
   { id: 'swift', name: 'Swift', extensions: ['swift'] },
   { id: 'kotlin', name: 'Kotlin', extensions: ['kt', 'kts'] },
   { id: 'scala', name: 'Scala', extensions: ['scala'] },
-  { id: 'r', name: 'R', extensions: ['r'] },
+  { id: 'r', name: 'R', extensions: ['r', 'R'] },
   { id: 'lua', name: 'Lua', extensions: ['lua'] },
-  { id: 'perl', name: 'Perl', extensions: ['perl', 'pl'] },
-  { id: 'haskell', name: 'Haskell', extensions: ['hs'] },
-  { id: 'elixir', name: 'Elixir', extensions: ['ex', 'exs'] },
-  { id: 'clojure', name: 'Clojure', extensions: ['clj', 'cljs'] },
+  { id: 'perl', name: 'Perl', extensions: ['perl', 'pl', 'pm'] },
+  { id: 'haskell', name: 'Haskell', extensions: ['hs', 'lhs'] },
+  { id: 'erlang', name: 'Erlang', extensions: ['erl', 'hrl'] },
+  { id: 'clojure', name: 'Clojure', extensions: ['clj', 'cljs', 'cljc', 'edn'] },
   { id: 'dart', name: 'Dart', extensions: ['dart'] },
-  { id: 'groovy', name: 'Groovy', extensions: ['groovy'] },
-  { id: 'powershell', name: 'PowerShell', extensions: ['ps1', 'psm1'] },
-  { id: 'dockerfile', name: 'Dockerfile', extensions: ['dockerfile'] },
+  { id: 'groovy', name: 'Groovy', extensions: ['groovy', 'gradle'] },
+  { id: 'powershell', name: 'PowerShell', extensions: ['ps1', 'psm1', 'psd1'] },
+  { id: 'dockerfile', name: 'Dockerfile', extensions: ['dockerfile', 'Dockerfile'] },
   { id: 'toml', name: 'TOML', extensions: ['toml'] },
+  { id: 'protobuf', name: 'Protocol Buffers', extensions: ['proto'] },
+  { id: 'csharp', name: 'C#', extensions: ['cs'] },
+  { id: 'lisp', name: 'Common Lisp', extensions: ['lisp', 'lsp', 'cl'] },
+  { id: 'scheme', name: 'Scheme', extensions: ['scm', 'ss'] },
+  { id: 'fortran', name: 'Fortran', extensions: ['f', 'f90', 'f95', 'f03', 'for'] },
+  { id: 'cobol', name: 'COBOL', extensions: ['cob', 'cbl', 'cobol'] },
+  { id: 'pascal', name: 'Pascal', extensions: ['pas', 'pp'] },
+  { id: 'diff', name: 'Diff', extensions: ['diff', 'patch'] },
+  { id: 'nginx', name: 'Nginx', extensions: ['conf', 'nginx'] }
+]
+
+export const UNSUPPORTED_LANGUAGES: LanguageDefinition[] = [
+  { id: 'elixir', name: 'Elixir', extensions: ['ex', 'exs'] },
   { id: 'graphql', name: 'GraphQL', extensions: ['graphql', 'gql'] },
-  { id: 'protobuf', name: 'Protocol Buffers', extensions: ['proto'] }
+  { id: 'julia', name: 'Julia', extensions: ['jl'] },
+  { id: 'ocaml', name: 'OCaml', extensions: ['ml', 'mli'] },
+  { id: 'fsharp', name: 'F#', extensions: ['fs', 'fsi', 'fsx'] },
+  { id: 'zig', name: 'Zig', extensions: ['zig'] },
+  { id: 'nim', name: 'Nim', extensions: ['nim'] },
+  { id: 'crystal', name: 'Crystal', extensions: ['cr'] },
+  { id: 'v', name: 'V', extensions: ['v'] },
+  { id: 'solidity', name: 'Solidity', extensions: ['sol'] }
 ]
 
 export function getLanguageById(id: string): LanguageDefinition | undefined {

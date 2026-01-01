@@ -69,6 +69,17 @@
               flat
               dense
               round
+              :icon="activeGist.public ? 'lock' : 'public'"
+              :color="activeGist.public ? 'warning' : 'positive'"
+              @click="handleChangeVisibility"
+              data-test="change-visibility-btn"
+            >
+              <q-tooltip>Make {{ activeGist.public ? 'Private' : 'Public' }}</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
               icon="delete"
               color="negative"
               @click="handleDelete"
@@ -525,6 +536,10 @@ function handleEdit() {
 
 function handleDelete() {
   uiStore.openModal('deleteGist')
+}
+
+function handleChangeVisibility() {
+  uiStore.openModal('cloneGist')
 }
 
 function handleVersionHistory() {
