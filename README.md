@@ -62,7 +62,7 @@ npm run dev
 ### Build
 
 ```bash
-# Build web app
+# Build web app (SPA)
 npm run build
 
 # Build PWA
@@ -70,6 +70,55 @@ npm run build:pwa
 
 # Build desktop app (Electron)
 npm run build:electron
+```
+
+## Installation
+
+### Desktop App (Electron)
+
+Pre-built binaries are available in the [Releases](https://github.com/wriver4/qepton/releases) page.
+
+**Linux:**
+- **AppImage**: Download `Qepton-x.x.x.AppImage`, make it executable (`chmod +x`), and run
+- **Snap**: `sudo snap install qepton_x.x.x_amd64.snap --dangerous`
+
+  > The `--dangerous` flag is required because the snap is locally built and not signed by the Snap Store. This is safe for releases you download directly from our GitHub.
+
+**macOS:**
+- Download the `.dmg` file and drag Qepton to Applications
+
+**Windows:**
+- Run the `.exe` installer or extract the portable `.7z` archive
+
+### PWA (Progressive Web App)
+
+The PWA build can be deployed to any static hosting service:
+
+```bash
+npm run build:pwa
+# Deploy contents of dist/pwa/ to your web server
+```
+
+Supported hosting options:
+- **Netlify**: Drag and drop `dist/pwa` folder
+- **Vercel**: `vercel dist/pwa`
+- **GitHub Pages**: Push `dist/pwa` contents to `gh-pages` branch
+- **Self-hosted**: Serve `dist/pwa` with any HTTP server (nginx, Apache, etc.)
+
+### SPA (Single Page Application)
+
+For traditional web deployment without offline support:
+
+```bash
+npm run build
+# Deploy contents of dist/spa/ to your web server
+```
+
+**Note:** The SPA requires an HTTP server. Opening `index.html` directly won't work due to CORS restrictions.
+
+Quick local preview:
+```bash
+npx quasar serve dist/spa
 ```
 
 ## Project Structure

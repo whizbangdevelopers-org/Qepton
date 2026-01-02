@@ -68,5 +68,8 @@ repo.md
 .claude/
 .mcp.json
 
+# GitHub workflows (private)
+.github/
+
 # Logs
 logs/
