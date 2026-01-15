@@ -1,10 +1,13 @@
 <template>
   <q-page class="flex flex-center login-page">
     <q-card class="login-card">
-      <q-card-section class="text-center">
-        <q-icon name="mdi-code-braces" size="80px" color="primary" />
-        <div class="text-h4 q-mt-md">Qepton</div>
-        <div class="text-subtitle1 text-grey-7">Code Snippet Manager</div>
+      <q-card-section class="text-center logo-section">
+        <img
+          src="src/assets/images/logos/qepton-wordmark-dark.svg"
+          alt="Qepton"
+          class="login-logo"
+        />
+        <div class="text-subtitle1 text-grey-7 q-mt-sm">Code Snippet Manager</div>
       </q-card-section>
 
       <q-separator />
@@ -125,13 +128,26 @@ async function loginWithToken() {
 
 <style lang="scss" scoped>
 .login-page {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
   min-height: 100vh;
 }
 
 .login-card {
   min-width: 400px;
   max-width: 500px;
+}
+
+.logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-logo {
+  height: 80px;
+  width: auto;
+  margin-right: -60px; // Compensate for SVG right padding
 }
 
 a {

@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "Code Snippet Manager powered by GitHub Gist - Quasar Edition",
   "productName": "Qepton",
-  "author": "CosmoX",
+  "author": "whizBANG Developers",
   "license": "MIT",
   "private": true,
   "scripts": {
