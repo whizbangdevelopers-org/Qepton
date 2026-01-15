@@ -929,6 +929,8 @@ onUnmounted(() => {
 }
 
 .gist-list-pane {
+  position: relative;
+  z-index: 1;
   width: 400px;
   min-width: 320px;
   max-width: 500px;
@@ -936,6 +938,7 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--bg-secondary);
 
   &.full-width {
     width: 100%;
