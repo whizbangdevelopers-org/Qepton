@@ -13,7 +13,7 @@
 
 ---
 
-Qepton is a powerful code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor).
+Qepton is a powerful code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor)(Future).
 
 ## Features
 
