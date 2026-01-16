@@ -139,7 +139,8 @@ push_to_target() {
   fi
 
   # Clean up: go back to original branch and delete temp
-  git checkout "$CURRENT_BRANCH"
+  # Use --force because orphan branch removed files that exist as untracked
+  git checkout "$CURRENT_BRANCH" --force
   git branch -D "$TEMP_BRANCH" 2>/dev/null || true
 
   echo ""
