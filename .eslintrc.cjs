@@ -73,6 +73,9 @@ module.exports = {
     'prefer-promise-reject-errors': 'off',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
 
+    // Allow underscore-prefixed unused variables (standard convention for intentionally unused params)
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+
     // allow async-await
     'generator-star-spacing': 'off',
 

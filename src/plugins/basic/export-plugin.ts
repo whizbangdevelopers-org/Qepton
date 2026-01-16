@@ -5,7 +5,8 @@
 
 import type { QeptonPlugin, QeptonApp, Snippet } from '../../core/types';
 
-interface ExportOptions {
+// Reserved for future use
+interface _ExportOptions {
   format: 'json' | 'markdown' | 'zip';
   includeMetadata: boolean;
 }

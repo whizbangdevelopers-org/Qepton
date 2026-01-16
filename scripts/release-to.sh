@@ -35,6 +35,7 @@ DEV_ONLY_PATTERNS=(
   "TESTING.md"
   "DEVELOPMENT.md"
   ".github/workflows/snap.yml"
+  ".github/workflows/test.yml"
 )
 
 if [[ -z "$TARGET" ]]; then
