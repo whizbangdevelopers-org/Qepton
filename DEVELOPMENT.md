@@ -65,8 +65,12 @@ The script automatically excludes dev-only files:
 - `docker-build/`
 - `e2e-docker/`
 - `tests/`
+- `docs/`
+- `flatpak/`
+- `playwright.config.ts`
 - `CLAUDE.md`
 - `TESTING.md`
+- `DEVELOPMENT.md`
 
 ---
 
