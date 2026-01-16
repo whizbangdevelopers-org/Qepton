@@ -1,0 +1,32 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Motion trail particles - showing forward momentum -->
+  <circle cx="12" cy="50" r="3" fill="#4ecdc4" opacity="0.3"/>
+  <circle cx="22" cy="50" r="4" fill="#4ecdc4" opacity="0.4"/>
+  <circle cx="34" cy="50" r="5" fill="#4ecdc4" opacity="0.5"/>
+  
+  <!-- Main Q particle body (the orbital ring) -->
+  <circle cx="58" cy="48" r="24" stroke="url(#particleGradient)" stroke-width="6" fill="none"/>
+  
+  <!-- Inner glow/core - the particle center -->
+  <circle cx="58" cy="48" r="10" fill="url(#coreGradient)"/>
+  
+  <!-- Q tail - starts outside bowl, shortened -->
+  <path d="M77 67 L88 78 L82 72 L88 78 L80 76" stroke="#4ecdc4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Speed/motion lines -->
+  <line x1="8" y1="38" x2="28" y2="38" stroke="#4ecdc4" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+  <line x1="4" y1="50" x2="20" y2="50" stroke="#4ecdc4" stroke-width="2" stroke-linecap="round" opacity="0.25"/>
+  <line x1="10" y1="62" x2="26" y2="62" stroke="#4ecdc4" stroke-width="2" stroke-linecap="round" opacity="0.2"/>
+  
+  <defs>
+    <linearGradient id="particleGradient" x1="34" y1="24" x2="82" y2="72">
+      <stop offset="0%" stop-color="#4ecdc4"/>
+      <stop offset="100%" stop-color="#44a8b3"/>
+    </linearGradient>
+    <radialGradient id="coreGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7fffe5"/>
+      <stop offset="70%" stop-color="#4ecdc4"/>
+      <stop offset="100%" stop-color="#2d9a93"/>
+    </radialGradient>
+  </defs>
+</svg>
