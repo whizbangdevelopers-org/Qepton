@@ -20,8 +20,9 @@ NC='\033[0m'
 TARGET="$1"
 
 # Dev-only files/folders to exclude when pushing to release repos
+# Note: scripts/validate-icons.sh is kept (needed by release workflow)
 DEV_ONLY_PATTERNS=(
-  "scripts/"
+  "scripts/release-to.sh"
   ".githooks/"
   "docker-build/"
   "e2e-docker/"
@@ -33,6 +34,7 @@ DEV_ONLY_PATTERNS=(
   "CLAUDE.md"
   "TESTING.md"
   "DEVELOPMENT.md"
+  ".github/workflows/snap.yml"
 )
 
 if [[ -z "$TARGET" ]]; then
