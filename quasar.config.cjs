@@ -211,7 +211,7 @@ module.exports = function (ctx) {
         linux: {
           icon: 'src-electron/icons',
           category: 'Development',
-          target: ['AppImage', 'deb'],
+          target: ['AppImage', 'deb', 'rpm'],
           executableName: 'qepton',
           desktop: {
             Name: 'Qepton',
