@@ -209,12 +209,13 @@ module.exports = function (ctx) {
         },
 
         linux: {
-          icon: 'src-electron/icons/icon.png',
+          icon: 'src-electron/icons',
           category: 'Development',
           target: ['AppImage', 'deb'],
           executableName: 'qepton',
           desktop: {
             Name: 'Qepton',
+            Icon: 'qepton',
             Comment: 'Prompt and Code Snippet Manager powered by GitHub Gist',
             Categories: 'Development;Utility;',
             StartupWMClass: 'Qepton'

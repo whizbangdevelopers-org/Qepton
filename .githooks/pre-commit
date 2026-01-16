@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Pre-commit hook: Validate icons when icon-related files change
+#
+# To enable this hook, run:
+#   git config core.hooksPath .githooks
+#
+# Or copy to .git/hooks/pre-commit
+
+# Check if any icon-related files are staged
+ICON_FILES=$(git diff --cached --name-only | grep -E "(src-electron/icons/|quasar\.config\.cjs)" || true)
+
+if [ -n "$ICON_FILES" ]; then
+  echo "Icon-related files changed, running validation..."
+  echo "Changed: $ICON_FILES"
+  echo ""
+
+  # Run validation script
+  if [ -f "scripts/validate-icons.sh" ]; then
+    bash scripts/validate-icons.sh
+    if [ $? -ne 0 ]; then
+      echo ""
+      echo "Commit aborted: Icon validation failed."
+      echo "Fix the issues above before committing."
+      exit 1
+    fi
+  else
+    echo "Warning: scripts/validate-icons.sh not found, skipping validation"
+  fi
+fi
+
+exit 0
