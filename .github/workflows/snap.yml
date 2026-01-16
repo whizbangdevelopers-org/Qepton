@@ -1,0 +1,169 @@
+name: Build and Publish Snap
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_to_store:
+        description: 'Publish to Snap Store (stable)'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  build-snap:
+    name: Build Snap Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron app
+        run: npx quasar build -m electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare snap directory
+        run: |
+          mkdir -p snap-build/opt/qepton
+          mkdir -p snap-build/usr/bin
+          mkdir -p snap-build/usr/share/applications
+          mkdir -p snap-build/meta/gui
+
+          # Copy built app
+          cp -r dist/electron/UnPackaged/linux-unpacked/* snap-build/opt/qepton/
+
+          # Create wrapper
+          cat > snap-build/usr/bin/qepton << 'WRAPPER'
+          #!/bin/bash
+          exec /opt/qepton/qepton "$@"
+          WRAPPER
+          chmod +x snap-build/usr/bin/qepton
+
+          # Copy icon
+          cp src-electron/icons/256x256.png snap-build/meta/gui/icon.png || \
+            cp src-electron/icons/icon.png snap-build/meta/gui/icon.png || true
+
+      - name: Create snapcraft.yaml
+        run: |
+          mkdir -p snap
+          cat > snap/snapcraft.yaml << 'SNAPCRAFT'
+          name: qepton
+          version: 'VERSION_PLACEHOLDER'
+          summary: Prompt and Code Snippet Manager powered by GitHub Gist
+          description: |
+            Qepton is a powerful prompt and code snippet manager that connects to GitHub Gist.
+            Features include smart tagging, fuzzy search, syntax highlighting,
+            and multi-platform support.
+
+          base: core22
+          grade: stable
+          confinement: strict
+          compression: lzo
+
+          architectures:
+            - build-on: amd64
+
+          apps:
+            qepton:
+              command: opt/qepton/qepton --no-sandbox
+              desktop: usr/share/applications/qepton.desktop
+              extensions: [gnome]
+              plugs:
+                - home
+                - network
+                - network-bind
+                - browser-support
+                - password-manager-service
+                - unity7
+
+          parts:
+            qepton:
+              plugin: dump
+              source: snap-build/
+              stage-packages:
+                - libgtk-3-0
+                - libnotify4
+                - libnss3
+                - libxss1
+                - libxtst6
+                - xdg-utils
+                - libatspi2.0-0
+                - libuuid1
+                - libsecret-1-0
+                - libgbm1
+                - libasound2
+          SNAPCRAFT
+
+          # Set version from tag or package.json
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/" snap/snapcraft.yaml
+
+      - name: Create desktop file
+        run: |
+          cat > snap-build/usr/share/applications/qepton.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Qepton
+          Comment=Prompt and Code Snippet Manager powered by GitHub Gist
+          Exec=qepton %U
+          Icon=${SNAP}/meta/gui/icon.png
+          Terminal=false
+          Type=Application
+          Categories=Development;Utility;
+          StartupWMClass=Qepton
+          MimeType=x-scheme-handler/gist;
+          DESKTOP
+
+      - name: Build snap
+        uses: snapcore/action-build@v1
+        id: snapcraft
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qepton-snap
+          path: ${{ steps.snapcraft.outputs.snap }}
+          retention-days: 30
+
+      - name: Publish to Snap Store (edge)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        continue-on-error: true
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          release: edge
+
+      - name: Publish to Snap Store (stable)
+        if: github.event.inputs.publish_to_store == 'true' && env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          release: stable
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.snapcraft.outputs.snap }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
