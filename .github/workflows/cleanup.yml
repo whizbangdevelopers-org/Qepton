@@ -1,0 +1,59 @@
+name: Cleanup
+
+on:
+  # Trigger after release workflow completes
+  workflow_run:
+    workflows: ["Build and Release"]
+    types:
+      - completed
+  # Manual trigger
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    # Only run on successful releases (or manual trigger)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 6  # Keep current + 1 previous (3 workflows each)
+
+      - name: Delete draft releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for draft releases..."
+          DRAFTS=$(gh release list --repo ${{ github.repository }} --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName')
+          if [ -n "$DRAFTS" ]; then
+            echo "Deleting draft releases:"
+            echo "$DRAFTS" | while read tag; do
+              echo "  - $tag"
+              gh release delete "$tag" --repo ${{ github.repository }} --yes 2>/dev/null || true
+            done
+          else
+            echo "No draft releases found"
+          fi
+
+      - name: Delete old caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for old caches..."
+          TODAY=$(date -u +%Y-%m-%d)
+
+          # Get all caches and delete those not created today
+          gh api repos/${{ github.repository }}/actions/caches --paginate -q '.actions_caches[] | "\(.id) \(.created_at)"' | while read id created_at; do
+            CACHE_DATE=$(echo "$created_at" | cut -d'T' -f1)
+            if [ "$CACHE_DATE" != "$TODAY" ]; then
+              echo "Deleting cache $id (created $CACHE_DATE)"
+              gh api -X DELETE repos/${{ github.repository }}/actions/caches/$id 2>/dev/null || true
+            fi
+          done
+
+          echo "Cache cleanup complete"

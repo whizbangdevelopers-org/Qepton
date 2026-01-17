@@ -1,0 +1,58 @@
+name: Copy Issue to Dev
+
+# This workflow copies confirmed issues from the Free repo to Dev
+# Triggered when an issue is labeled with 'confirmed'
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  copy-to-dev:
+    if: github.event.label.name == 'confirmed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Copy issue to Dev repo
+        env:
+          GH_TOKEN: ${{ secrets.DEV_REPO_TOKEN }}
+        run: |
+          # Extract issue details
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+          ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+
+          # Determine label for Dev repo (bug or feature)
+          DEV_LABELS="from-free"
+          if echo "$ISSUE_LABELS" | grep -q "bug"; then
+            DEV_LABELS="$DEV_LABELS,bug"
+          fi
+          if echo "$ISSUE_LABELS" | grep -q "feature"; then
+            DEV_LABELS="$DEV_LABELS,feature"
+          fi
+          if echo "$ISSUE_LABELS" | grep -q "enhancement"; then
+            DEV_LABELS="$DEV_LABELS,enhancement"
+          fi
+
+          # Create issue in Dev repo
+          NEW_ISSUE_URL=$(gh issue create \
+            --repo whizbangdevelopers/Qepton-Dev \
+            --title "Free #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+            --label "$DEV_LABELS" \
+            --body "$(cat <<EOF
+          **Copied from:** ${ISSUE_URL}
+
+          ---
+
+          ${ISSUE_BODY}
+          EOF
+          )")
+
+          echo "Created issue in Dev: $NEW_ISSUE_URL"
+
+          # Add comment to original issue linking to Dev issue
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --body "This issue has been accepted and copied to our internal tracker for development."

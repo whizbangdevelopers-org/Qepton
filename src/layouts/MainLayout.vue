@@ -1,0 +1,253 @@
+<template>
+  <q-layout view="hHh lpR fFf">
+    <!-- Header (hidden in immersive mode) -->
+    <q-header v-if="!uiStore.immersiveMode" elevated>
+      <q-toolbar>
+        <div class="logo-container">
+          <img
+            :src="logoUrl"
+            alt="Qepton"
+            class="toolbar-logo"
+          />
+        </div>
+
+        <q-space />
+
+        <!-- Sync Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="sync"
+          :loading="gistsStore.isSyncing"
+          @click="handleSync"
+          data-test="sync-button"
+        >
+          <q-tooltip>Sync Gists (Cmd/Ctrl+R)</q-tooltip>
+        </q-btn>
+
+        <!-- Dashboard Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="mdi-chart-box"
+          @click="uiStore.openModal('dashboard')"
+          data-test="dashboard-button"
+        >
+          <q-tooltip>Dashboard (Cmd/Ctrl+D)</q-tooltip>
+        </q-btn>
+
+        <!-- Theme Toggle -->
+        <q-btn
+          flat
+          round
+          dense
+          :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'"
+          @click="toggleTheme"
+          data-test="theme-toggle"
+        >
+          <q-tooltip>Toggle Theme</q-tooltip>
+        </q-btn>
+
+        <!-- Help Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="help"
+          @click="uiStore.openModal('help')"
+          data-test="help-button"
+        >
+          <q-tooltip>Help</q-tooltip>
+        </q-btn>
+
+        <!-- Settings Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="settings"
+          @click="uiStore.openModal('settings')"
+          data-test="settings-button"
+        >
+          <q-tooltip>Settings</q-tooltip>
+        </q-btn>
+
+        <!-- About Button -->
+        <q-btn
+          flat
+          round
+          dense
+          icon="info"
+          @click="uiStore.openModal('about')"
+          data-test="about-button"
+        >
+          <q-tooltip>About</q-tooltip>
+        </q-btn>
+      </q-toolbar>
+    </q-header>
+
+    <!-- Left Drawer: Navigation Panel -->
+    <q-drawer
+      v-if="!uiStore.immersiveMode"
+      v-model="leftDrawerOpen"
+      show-if-above
+      bordered
+      :width="280"
+      data-test="navigation-panel"
+    >
+      <NavigationPanel />
+    </q-drawer>
+
+    <!-- Main Content -->
+    <q-page-container>
+      <router-view />
+    </q-page-container>
+
+    <!-- Dialogs -->
+    <NewGistDialog />
+    <EditGistDialog />
+    <DeleteGistDialog />
+    <SearchDialog />
+    <AboutDialog />
+    <CloneGistDialog />
+    <DashboardDialog />
+    <HelpDialog />
+    <LogoutDialog />
+    <PinnedTagsDialog />
+    <RawGistDialog />
+    <SettingsDialog />
+    <VersionHistoryDialog />
+  </q-layout>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useQuasar } from 'quasar'
+import { useUIStore } from 'src/stores/ui'
+import { useGistsStore } from 'src/stores/gists'
+import { themeService } from 'src/services/theme'
+import logoUrl from 'src/assets/images/logos/qepton-wordmark.svg'
+import NavigationPanel from 'src/components/NavigationPanel.vue'
+import NewGistDialog from 'src/components/NewGistDialog.vue'
+import EditGistDialog from 'src/components/EditGistDialog.vue'
+import DeleteGistDialog from 'src/components/DeleteGistDialog.vue'
+import SearchDialog from 'src/components/SearchDialog.vue'
+import AboutDialog from 'src/components/AboutDialog.vue'
+import CloneGistDialog from 'src/components/CloneGistDialog.vue'
+import DashboardDialog from 'src/components/DashboardDialog.vue'
+import HelpDialog from 'src/components/HelpDialog.vue'
+import LogoutDialog from 'src/components/LogoutDialog.vue'
+import PinnedTagsDialog from 'src/components/PinnedTagsDialog.vue'
+import RawGistDialog from 'src/components/RawGistDialog.vue'
+import SettingsDialog from 'src/components/SettingsDialog.vue'
+import VersionHistoryDialog from 'src/components/VersionHistoryDialog.vue'
+
+const $q = useQuasar()
+const uiStore = useUIStore()
+const gistsStore = useGistsStore()
+
+const leftDrawerOpen = ref(true)
+
+function toggleTheme() {
+  themeService.toggleTheme()
+}
+
+async function handleSync() {
+  try {
+    await Promise.all([gistsStore.syncGists(), gistsStore.syncStarredGists()])
+    $q.notify({
+      type: 'positive',
+      message: `Synced ${gistsStore.totalGists} gists`,
+      icon: 'check_circle'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Sync failed. Please check your connection.',
+      icon: 'error'
+    })
+  }
+}
+
+// Keyboard shortcuts
+function handleKeyDown(event: KeyboardEvent) {
+  const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
+  const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey
+
+  // Cmd/Ctrl + R: Sync
+  if (cmdOrCtrl && event.key === 'r') {
+    event.preventDefault()
+    handleSync()
+  }
+
+  // Cmd/Ctrl + N: New Gist
+  if (cmdOrCtrl && event.key === 'n') {
+    event.preventDefault()
+    uiStore.openModal('newGist')
+  }
+
+  // Cmd/Ctrl + E: Edit Gist
+  if (cmdOrCtrl && event.key === 'e' && gistsStore.activeGist) {
+    event.preventDefault()
+    uiStore.openModal('editGist')
+  }
+
+  // Cmd/Ctrl + D: Dashboard
+  if (cmdOrCtrl && event.key === 'd') {
+    event.preventDefault()
+    uiStore.toggleModal('dashboard')
+  }
+
+  // Cmd/Ctrl + I: Immersive Mode
+  if (cmdOrCtrl && event.key === 'i') {
+    event.preventDefault()
+    uiStore.toggleImmersiveMode()
+  }
+
+  // Shift + Space: Search
+  if (event.shiftKey && event.code === 'Space') {
+    event.preventDefault()
+    uiStore.openModal('search')
+  }
+
+  // Escape: Close modals or exit immersive mode
+  if (event.key === 'Escape') {
+    if (uiStore.isAnyModalOpen) {
+      uiStore.closeAllModals()
+    } else if (uiStore.immersiveMode) {
+      uiStore.toggleImmersiveMode()
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+</script>
+
+<style lang="scss" scoped>
+.q-toolbar {
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+  color: white;
+  min-height: 64px;
+  padding: 8px 16px;
+}
+
+.logo-container {
+  width: 280px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.toolbar-logo {
+  height: 48px;
+  width: auto;
+}
+</style>
