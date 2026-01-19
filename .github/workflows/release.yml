@@ -1,0 +1,340 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate icons
+        if: matrix.platform == 'linux'
+        run: bash scripts/validate-icons.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron app
+        run: npm run build:electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip code signing on macOS (no certificate configured)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Install Snapcraft
+        if: matrix.platform == 'linux'
+        run: |
+          sudo snap install snapcraft --classic
+          sudo snap install lxd
+          sudo lxd init --auto || true
+
+      - name: Verify Linux package icons
+        if: matrix.platform == 'linux'
+        run: |
+          echo "Verifying DEB package..."
+          DEB_FILE=$(ls dist/electron/Packaged/*.deb 2>/dev/null | head -1)
+          if [ -n "$DEB_FILE" ]; then
+            mkdir -p /tmp/deb-verify
+            dpkg-deb -x "$DEB_FILE" /tmp/deb-verify
+
+            # Check icon installed to hicolor
+            if ls /tmp/deb-verify/usr/share/icons/hicolor/*/apps/qepton.png >/dev/null 2>&1; then
+              echo "✓ DEB: Icons installed to hicolor"
+            else
+              echo "✗ DEB: Icons NOT in hicolor!"
+              exit 1
+            fi
+
+            # Check desktop file has Icon field
+            DESKTOP_FILE=$(ls /tmp/deb-verify/usr/share/applications/*.desktop 2>/dev/null | head -1)
+            if [ -n "$DESKTOP_FILE" ] && grep -q "^Icon=qepton" "$DESKTOP_FILE"; then
+              echo "✓ DEB: Desktop file has Icon=qepton"
+            else
+              echo "✗ DEB: Desktop file missing Icon field!"
+              cat "$DESKTOP_FILE" || true
+              exit 1
+            fi
+          fi
+
+          echo "Verifying RPM package..."
+          RPM_FILE=$(ls dist/electron/Packaged/*.rpm 2>/dev/null | head -1)
+          if [ -n "$RPM_FILE" ]; then
+            mkdir -p /tmp/rpm-verify
+            cd /tmp/rpm-verify
+            rpm2cpio "$OLDPWD/$RPM_FILE" | cpio -idmv 2>/dev/null
+
+            if ls usr/share/icons/hicolor/*/apps/qepton.png >/dev/null 2>&1; then
+              echo "✓ RPM: Icons installed to hicolor"
+            else
+              echo "✗ RPM: Icons NOT in hicolor!"
+              find . -name "*.png" -o -name "qepton*"
+              exit 1
+            fi
+          fi
+
+          echo "All Linux package verifications passed!"
+
+      - name: Upload Linux artifacts
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-builds
+          path: |
+            dist/electron/Packaged/*.AppImage
+            dist/electron/Packaged/*.snap
+            dist/electron/Packaged/*.deb
+            dist/electron/Packaged/*.pacman
+            dist/electron/Packaged/*.rpm
+            dist/electron/Packaged/latest-linux.yml
+          retention-days: 5
+
+      - name: Upload macOS artifacts
+        if: matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-builds
+          path: |
+            dist/electron/Packaged/*.dmg
+            dist/electron/Packaged/*.zip
+            dist/electron/Packaged/latest-mac.yml
+          retention-days: 5
+
+      - name: Upload Windows artifacts
+        if: matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-builds
+          path: |
+            dist/electron/Packaged/*.exe
+            dist/electron/Packaged/*.7z
+            dist/electron/Packaged/latest.yml
+          retention-days: 5
+
+  # ==========================================================================
+  # Pacman Package Build (Arch Linux)
+  # Uncomment this job to build pacman packages for Arch Linux
+  # ==========================================================================
+  # build-pacman:
+  #   name: Build Pacman Package
+  #   runs-on: ubuntu-latest
+  #   container: archlinux:latest
+  #   needs: build
+  #
+  #   steps:
+  #     - name: Install dependencies
+  #       run: |
+  #         pacman -Syu --noconfirm
+  #         pacman -S --noconfirm base-devel git wget
+  #
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Download Linux build
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: linux-builds
+  #         path: artifacts
+  #
+  #     - name: Extract version
+  #       id: version
+  #       run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+  #
+  #     - name: Prepare source
+  #       run: |
+  #         cd pacman
+  #         # Update PKGBUILD version
+  #         sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
+  #         # Extract the Linux tarball for packaging
+  #         mkdir -p src
+  #         tar -xzf ../artifacts/*.tar.gz -C src/ 2>/dev/null || \
+  #           tar -xf ../artifacts/*.AppImage --appimage-extract -C src/ 2>/dev/null || \
+  #           echo "Using unpacked format"
+  #
+  #     - name: Build package
+  #       run: |
+  #         cd pacman
+  #         # Create a non-root user for makepkg (required by Arch)
+  #         useradd -m builder
+  #         chown -R builder:builder .
+  #         su builder -c "makepkg -s --noconfirm --skipinteg"
+  #
+  #     - name: Upload pacman package
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: pacman-package
+  #         path: pacman/*.pkg.tar.zst
+  #         retention-days: 5
+
+  release:
+    name: Create Release
+    needs: build
+    # When enabling pacman build, change to: needs: [build, build-pacman]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display artifact structure
+        run: ls -R artifacts
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Get commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges -10)
+          fi
+
+          # Create release notes
+          NOTES="### Changes
+          $COMMITS"
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ steps.release_notes.outputs.version }}"
+          DATE="${{ steps.release_notes.outputs.date }}"
+
+          # Check if version already exists in CHANGELOG
+          if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "Version $VERSION already in CHANGELOG.md, skipping update"
+            exit 0
+          fi
+
+          # Get commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Categorize commits
+          ADDED=""
+          FIXED=""
+          CHANGED=""
+
+          if [ -n "$PREV_TAG" ]; then
+            while IFS= read -r commit; do
+              if echo "$commit" | grep -iq "^add\|^feat\|^new"; then
+                ADDED="$ADDED
+          - $commit"
+              elif echo "$commit" | grep -iq "^fix\|^bug\|^patch"; then
+                FIXED="$FIXED
+          - $commit"
+              else
+                CHANGED="$CHANGED
+          - $commit"
+              fi
+            done < <(git log --pretty=format:"%s" $PREV_TAG..HEAD --no-merges)
+          fi
+
+          # Build new entry
+          NEW_ENTRY="## [$VERSION] - $DATE"
+          [ -n "$ADDED" ] && NEW_ENTRY="$NEW_ENTRY
+
+          ### Added$ADDED"
+          [ -n "$FIXED" ] && NEW_ENTRY="$NEW_ENTRY
+
+          ### Fixed$FIXED"
+          [ -n "$CHANGED" ] && NEW_ENTRY="$NEW_ENTRY
+
+          ### Changed$CHANGED"
+
+          # Insert after the header
+          sed -i "/^## \[/i\\
+          $NEW_ENTRY\\
+          " CHANGELOG.md
+
+      - name: Commit CHANGELOG update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "Update CHANGELOG.md for v${{ steps.release_notes.outputs.version }}"
+          git push origin HEAD:main || echo "No changes to push"
+
+      # electron-builder creates the release and uploads assets during the build job
+      # This step ensures the release is published (not draft) and uploads any missing artifacts
+      - name: Publish Release
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          # Wait for electron-builder to create the release (it runs in parallel build jobs)
+          echo "Waiting for release $TAG to be created by electron-builder..."
+          for i in {1..30}; do
+            if gh release view "$TAG" 2>/dev/null; then
+              echo "Release $TAG found"
+              break
+            fi
+            echo "Waiting... (attempt $i/30)"
+            sleep 10
+          done
+
+          # Publish if still draft
+          IS_DRAFT=$(gh release view "$TAG" --json isDraft -q '.isDraft' 2>/dev/null || echo "true")
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "Publishing draft release..."
+            gh release edit "$TAG" --draft=false
+          else
+            echo "Release is already published"
+          fi
+
+          # Upload any artifacts that electron-builder might have missed (e.g., from failed uploads)
+          echo "Uploading any missing artifacts..."
+          # When enabling pacman build, add pacman-package to this list
+          for dir in linux-builds mac-builds win-builds; do
+            if [ -d "artifacts/$dir" ]; then
+              for file in artifacts/$dir/*; do
+                if [ -f "$file" ]; then
+                  filename=$(basename "$file")
+                  echo "Checking $filename..."
+                  gh release upload "$TAG" "$file" --clobber 2>/dev/null || echo "  Skipped (already exists or error)"
+                fi
+              done
+            fi
+          done
+
+          # Show final asset count
+          ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length')
+          echo "Release $TAG now has $ASSET_COUNT assets"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

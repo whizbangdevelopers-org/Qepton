@@ -1,0 +1,54 @@
+// app global css
+@use 'sass:color';
+@import './quasar.variables.scss';
+
+body {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+// Dark theme customizations
+.body--dark {
+  --bg-primary: #1e1e1e;
+  --text-primary: #e0e0e0;
+  --border-color: #3a3b41;
+}
+
+// Light theme customizations
+.body--light {
+  --bg-primary: #ffffff;
+  --text-primary: #000000;
+  --border-color: #e0e0e0;
+}
+
+// Custom scrollbar
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--q-primary);
+  border-radius: 6px;
+
+  &:hover {
+    background: color.adjust(#027be3, $lightness: -10%);
+  }
+}
+
+// Code highlighting
+.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0.5em;
+  background: #f6f8fa;
+
+  .body--dark & {
+    background: #282c34;
+  }
+}
