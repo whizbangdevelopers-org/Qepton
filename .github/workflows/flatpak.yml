@@ -1,0 +1,185 @@
+name: Build Flatpak
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-flatpak:
+    name: Build Flatpak Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron app
+        run: npx quasar build -m electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Flatpak tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+
+      - name: Add Flathub repository
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install Flatpak runtimes
+        run: |
+          flatpak install -y --user flathub org.freedesktop.Platform//23.08
+          flatpak install -y --user flathub org.freedesktop.Sdk//23.08
+          flatpak install -y --user flathub org.electronjs.Electron2.BaseApp//23.08
+
+      - name: Prepare Flatpak build directory
+        run: |
+          mkdir -p flatpak-build/app
+          cp -r dist/electron/Packaged/linux-unpacked/* flatpak-build/app/
+
+      - name: Create Flatpak manifest
+        run: |
+          # Get version from tag or package.json
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+
+          mkdir -p flatpak-build
+
+          # Create wrapper script
+          cat > flatpak-build/qepton.sh << 'WRAPPER'
+          #!/bin/bash
+          export TMPDIR="$XDG_RUNTIME_DIR/app/$FLATPAK_ID"
+          exec zypak-wrapper /app/qepton/qepton "$@"
+          WRAPPER
+
+          # Create desktop file
+          cat > flatpak-build/com.whizbangdevelopers.Qepton.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Qepton
+          Comment=Prompt and Code Snippet Manager powered by GitHub Gist
+          Exec=qepton %U
+          Icon=com.whizbangdevelopers.Qepton
+          Terminal=false
+          Type=Application
+          Categories=Development;Utility;
+          Keywords=gist;snippet;code;github;
+          StartupWMClass=Qepton
+          DESKTOP
+
+          # Create metainfo
+          cat > flatpak-build/com.whizbangdevelopers.Qepton.metainfo.xml << METAINFO
+          <?xml version="1.0" encoding="UTF-8"?>
+          <component type="desktop-application">
+            <id>com.whizbangdevelopers.Qepton</id>
+            <name>Qepton</name>
+            <summary>Prompt and Code Snippet Manager powered by GitHub Gist</summary>
+            <metadata_license>CC0-1.0</metadata_license>
+            <project_license>MIT</project_license>
+            <developer_name>whizBANG Developers</developer_name>
+            <description>
+              <p>Qepton is a powerful prompt and code snippet manager that connects to GitHub Gist.</p>
+            </description>
+            <launchable type="desktop-id">com.whizbangdevelopers.Qepton.desktop</launchable>
+            <url type="homepage">https://github.com/whizbangdevelopers/Qepton</url>
+            <content_rating type="oars-1.1" />
+            <releases>
+              <release version="$VERSION" date="$(date +%Y-%m-%d)"/>
+            </releases>
+          </component>
+          METAINFO
+
+          # Create manifest
+          cat > flatpak-build/com.whizbangdevelopers.Qepton.yml << 'MANIFEST'
+          app-id: com.whizbangdevelopers.Qepton
+          runtime: org.freedesktop.Platform
+          runtime-version: '23.08'
+          sdk: org.freedesktop.Sdk
+          base: org.electronjs.Electron2.BaseApp
+          base-version: '23.08'
+          command: qepton
+          separate-locales: false
+
+          finish-args:
+            - --share=ipc
+            - --socket=x11
+            - --socket=wayland
+            - --share=network
+            - --device=dri
+            - --socket=pulseaudio
+            - --filesystem=home
+            - --talk-name=org.freedesktop.Notifications
+            - --talk-name=org.kde.StatusNotifierWatcher
+            - --talk-name=org.freedesktop.secrets
+
+          modules:
+            - name: qepton
+              buildsystem: simple
+              build-commands:
+                - install -Dm755 qepton.sh /app/bin/qepton
+                - install -Dm644 com.whizbangdevelopers.Qepton.desktop /app/share/applications/com.whizbangdevelopers.Qepton.desktop
+                - install -Dm644 com.whizbangdevelopers.Qepton.metainfo.xml /app/share/metainfo/com.whizbangdevelopers.Qepton.metainfo.xml
+                - install -Dm644 icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.whizbangdevelopers.Qepton.png || true
+                - install -Dm644 icons/256x256.png /app/share/icons/hicolor/256x256/apps/com.whizbangdevelopers.Qepton.png || true
+                - cp -r app /app/qepton
+              sources:
+                - type: dir
+                  path: .
+          MANIFEST
+
+          # Copy icons
+          cp -r src-electron/icons flatpak-build/
+
+      - name: Build Flatpak
+        run: |
+          cd flatpak-build
+          flatpak-builder --user --force-clean --repo=repo build-dir com.whizbangdevelopers.Qepton.yml
+
+      - name: Create Flatpak bundle
+        run: |
+          cd flatpak-build
+          flatpak build-bundle repo qepton.flatpak com.whizbangdevelopers.Qepton
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qepton-flatpak
+          path: flatpak-build/qepton.flatpak
+          retention-days: 30
+
+      - name: Wait for main release to be created
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Wait up to 10 minutes for the release to exist with assets
+          for i in {1..60}; do
+            ASSETS=$(gh release view ${{ github.ref_name }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
+            if [ "$ASSETS" -gt "0" ]; then
+              echo "Release has $ASSETS assets, proceeding with upload"
+              break
+            fi
+            echo "Waiting for main release to have assets... (attempt $i/60)"
+            sleep 10
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Flatpak to GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release upload ${{ github.ref_name }} flatpak-build/qepton.flatpak --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

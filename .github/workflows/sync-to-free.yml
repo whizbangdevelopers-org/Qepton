@@ -1,0 +1,222 @@
+name: Sync to Free
+
+# Syncs changes from Qepton-Dev to Qepton (Free) via PR
+# - Auto-triggers on push to main
+# - Can be manually triggered via workflow_dispatch
+# - Rewrites issue references using .github/issue-mapping.json
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/issue-mapping.json'
+      - 'DEVELOPMENT.md'
+      - 'TESTING.md'
+      - 'CLAUDE.md'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force sync even if no changes detected'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Skip if commit message contains [skip-sync] or is from release-to.sh
+    if: |
+      !contains(github.event.head_commit.message, '[skip-sync]') &&
+      !startsWith(github.event.head_commit.message, 'Release v')
+
+    steps:
+      - name: Checkout Dev repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read issue mapping
+        id: mapping
+        run: |
+          if [[ -f .github/issue-mapping.json ]]; then
+            echo "mapping=$(cat .github/issue-mapping.json | jq -c '.["dev-to-free"]')" >> $GITHUB_OUTPUT
+            echo "has_mapping=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_mapping=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get last sync point
+        id: sync-point
+        run: |
+          # Look for last-sync-to-free tag or use initial commit
+          if git rev-parse last-sync-to-free >/dev/null 2>&1; then
+            echo "ref=last-sync-to-free" >> $GITHUB_OUTPUT
+          else
+            # First sync - use parent of current commit
+            echo "ref=HEAD~1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get commits since last sync
+        id: commits
+        run: |
+          COMMITS=$(git log ${{ steps.sync-point.outputs.ref }}..HEAD --oneline --no-merges)
+          if [[ -z "$COMMITS" ]]; then
+            echo "No new commits to sync"
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          else
+            echo "Commits to sync:"
+            echo "$COMMITS"
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare sync branch
+        if: steps.commits.outputs.has_commits == 'true' || inputs.force == 'true'
+        run: |
+          # Create a branch for the PR
+          BRANCH_NAME="sync-from-dev-$(date +%Y%m%d-%H%M%S)"
+          echo "SYNC_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
+
+          # Exclude dev-only files (same as release-to.sh)
+          DEV_ONLY=(
+            "scripts/release-to.sh"
+            "scripts/sync-issues.sh"
+            ".githooks/"
+            "docker-build/"
+            "e2e-docker/"
+            "tests/"
+            "docs/"
+            "flatpak/"
+            "playwright.config.ts"
+            "vitest.config.ts"
+            "CLAUDE.md"
+            "TESTING.md"
+            "DEVELOPMENT.md"
+            ".github/workflows/snap.yml"
+            ".github/workflows/test.yml"
+            ".github/workflows/sync-to-free.yml"
+          )
+
+          # Build exclude args
+          EXCLUDE_ARGS=""
+          for pattern in "${DEV_ONLY[@]}"; do
+            EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=$pattern"
+          done
+
+          echo "Excluded patterns: ${DEV_ONLY[*]}"
+
+      - name: Rewrite commit messages with Free issue numbers
+        if: steps.commits.outputs.has_commits == 'true' || inputs.force == 'true'
+        env:
+          MAPPING: ${{ steps.mapping.outputs.mapping }}
+        run: |
+          # Get commit messages and rewrite issue references
+          git log ${{ steps.sync-point.outputs.ref }}..HEAD --format="%H|%s" --no-merges | while IFS='|' read -r sha msg; do
+            NEW_MSG="$msg"
+
+            # Replace #N with whizbangdevelopers/Qepton#M using mapping
+            if [[ "${{ steps.mapping.outputs.has_mapping }}" == "true" ]]; then
+              # Parse mapping and replace issue references
+              for dev_num in $(echo "$MAPPING" | jq -r 'keys[]'); do
+                free_num=$(echo "$MAPPING" | jq -r --arg k "$dev_num" '.[$k]')
+                # Replace #dev_num with full repo reference
+                NEW_MSG=$(echo "$NEW_MSG" | sed "s/#${dev_num}\b/whizbangdevelopers\/Qepton#${free_num}/g")
+              done
+            fi
+
+            echo "Original: $msg"
+            echo "Rewritten: $NEW_MSG"
+            echo ""
+          done
+
+      - name: Create PR to Free repo
+        if: steps.commits.outputs.has_commits == 'true' || inputs.force == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.QEPTON_FREE_REPO_PAT }}
+        run: |
+          # Clone Free repo
+          git clone https://x-access-token:${GH_TOKEN}@github.com/whizbangdevelopers/Qepton.git /tmp/qepton-free
+          cd /tmp/qepton-free
+
+          # Create sync branch
+          git checkout -b "$SYNC_BRANCH"
+
+          # Copy files from Dev (excluding dev-only)
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='scripts/release-to.sh' \
+            --exclude='scripts/sync-issues.sh' \
+            --exclude='.githooks/' \
+            --exclude='docker-build/' \
+            --exclude='e2e-docker/' \
+            --exclude='tests/' \
+            --exclude='docs/' \
+            --exclude='flatpak/' \
+            --exclude='playwright.config.ts' \
+            --exclude='vitest.config.ts' \
+            --exclude='CLAUDE.md' \
+            --exclude='TESTING.md' \
+            --exclude='DEVELOPMENT.md' \
+            --exclude='.github/workflows/snap.yml' \
+            --exclude='.github/workflows/test.yml' \
+            --exclude='.github/workflows/sync-to-free.yml' \
+            --exclude='.github/issue-mapping.json' \
+            "$GITHUB_WORKSPACE/" ./
+
+          # Patch quasar.config.cjs for Free repo
+          if [[ -f quasar.config.cjs ]]; then
+            sed -i "s/repo: 'Qepton-Dev'/repo: 'Qepton'/" quasar.config.cjs
+          fi
+
+          # Check for changes
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Sync from Qepton-Dev
+
+          Automated sync of changes from the development repository.
+
+          Source commit: ${{ github.sha }}"
+
+          git push origin "$SYNC_BRANCH"
+
+          # Create PR
+          PR_URL=$(gh pr create \
+            --repo whizbangdevelopers/Qepton \
+            --title "Sync from Dev $(date +%Y-%m-%d)" \
+            --body "$(cat <<'EOF'
+          ## Automated Sync from Qepton-Dev
+
+          This PR contains changes synced from the development repository.
+
+          **Source:** whizbangdevelopers/Qepton-Dev@${{ github.sha }}
+
+          ### Changes included
+          $(cd $GITHUB_WORKSPACE && git log ${{ steps.sync-point.outputs.ref }}..HEAD --oneline --no-merges | head -20)
+
+          ---
+          *This PR was automatically created by the sync-to-free workflow.*
+          EOF
+          )" \
+            --label "automated-sync")
+
+          echo "Created PR: $PR_URL"
+
+          # Enable auto-merge
+          gh pr merge "$PR_URL" --auto --squash --repo whizbangdevelopers/Qepton || true
+
+      - name: Update sync point tag
+        if: steps.commits.outputs.has_commits == 'true'
+        run: |
+          git tag -f last-sync-to-free HEAD
+          git push origin last-sync-to-free --force
