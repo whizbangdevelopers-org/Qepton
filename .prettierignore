@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.quasar/
+
+# Capacitor/Cordova
+src-capacitor/www/
+src-capacitor/node_modules/
+src-cordova/www/
+src-cordova/node_modules/
+src-cordova/platforms/
+src-cordova/plugins/
+
+# Electron
+src-electron/dist/
+
+# E2E Docker
+e2e-docker/output/
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+.history/
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+*.min.css
+
+# Misc
+.DS_Store
+Thumbs.db
+tmp/
