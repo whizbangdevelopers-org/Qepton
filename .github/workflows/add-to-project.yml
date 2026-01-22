@@ -1,0 +1,186 @@
+name: Add to Project
+
+# Auto-adds issues to GitHub Project and sets fields based on labels
+# Requires: PROJECT_PAT secret with 'project' scope
+# Project URL format: https://github.com/orgs/whizbangdevelopers/projects/NUMBER
+
+on:
+  issues:
+    types: [opened, labeled]
+
+env:
+  PROJECT_URL: https://github.com/users/whizbangdevelopers/projects/1
+
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to project
+        id: add-project
+        uses: actions/add-to-project@v1.0.2
+        with:
+          project-url: ${{ env.PROJECT_URL }}
+          github-token: ${{ secrets.PROJECT_PAT }}
+
+      - name: Determine Target field value
+        id: target
+        run: |
+          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+
+          if echo "$LABELS" | grep -qi "premium"; then
+            echo "value=Premium" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "plugin"; then
+            echo "value=Plugin" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "free-infra\|from-free"; then
+            echo "value=Free" >> $GITHUB_OUTPUT
+          else
+            echo "value=Dev-only" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine Phase field value
+        id: phase
+        run: |
+          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+          TITLE="${{ github.event.issue.title }}"
+
+          # Check labels and title for phase hints
+          if echo "$LABELS" | grep -qi "packaging"; then
+            echo "value=1-Foundation" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "marketing\|community"; then
+            echo "value=2-Marketing" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "premium"; then
+            echo "value=5-Premium" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "plugin"; then
+            echo "value=6-Plugins" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "testing\|ci-cd"; then
+            echo "value=4-Platform" >> $GITHUB_OUTPUT
+          else
+            echo "value=3-Features" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine Effort field value
+        id: effort
+        run: |
+          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+
+          if echo "$LABELS" | grep -qi "effort-high\|high-effort"; then
+            echo "value=High" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qi "effort-low\|low-effort\|quick-win"; then
+            echo "value=Low" >> $GITHUB_OUTPUT
+          else
+            echo "value=Medium" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update project fields
+        if: steps.add-project.outputs.itemId != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          ITEM_ID="${{ steps.add-project.outputs.itemId }}"
+
+          # Get project ID from URL
+          PROJECT_NUMBER=$(echo "${{ env.PROJECT_URL }}" | grep -oE '[0-9]+$')
+
+          # Query for project node ID and field IDs
+          PROJECT_DATA=$(gh api graphql -f query='
+            query($user: String!, $number: Int!) {
+              user(login: $user) {
+                projectV2(number: $number) {
+                  id
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f user="whizbangdevelopers" -F number="$PROJECT_NUMBER")
+
+          PROJECT_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.id')
+
+          # Function to get field and option IDs
+          get_field_option() {
+            local field_name="$1"
+            local option_name="$2"
+
+            FIELD_ID=$(echo "$PROJECT_DATA" | jq -r --arg name "$field_name" \
+              '.data.user.projectV2.fields.nodes[] | select(.name == $name) | .id')
+
+            OPTION_ID=$(echo "$PROJECT_DATA" | jq -r --arg name "$field_name" --arg opt "$option_name" \
+              '.data.user.projectV2.fields.nodes[] | select(.name == $name) | .options[] | select(.name == $opt) | .id')
+
+            echo "$FIELD_ID|$OPTION_ID"
+          }
+
+          # Update Target field
+          TARGET_RESULT=$(get_field_option "Target" "${{ steps.target.outputs.value }}")
+          TARGET_FIELD_ID=$(echo "$TARGET_RESULT" | cut -d'|' -f1)
+          TARGET_OPTION_ID=$(echo "$TARGET_RESULT" | cut -d'|' -f2)
+
+          if [[ -n "$TARGET_FIELD_ID" && -n "$TARGET_OPTION_ID" ]]; then
+            gh api graphql -f query='
+              mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: { singleSelectOptionId: $value }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            ' -f project="$PROJECT_ID" -f item="$ITEM_ID" -f field="$TARGET_FIELD_ID" -f value="$TARGET_OPTION_ID"
+            echo "Updated Target field to: ${{ steps.target.outputs.value }}"
+          fi
+
+          # Update Phase field
+          PHASE_RESULT=$(get_field_option "Phase" "${{ steps.phase.outputs.value }}")
+          PHASE_FIELD_ID=$(echo "$PHASE_RESULT" | cut -d'|' -f1)
+          PHASE_OPTION_ID=$(echo "$PHASE_RESULT" | cut -d'|' -f2)
+
+          if [[ -n "$PHASE_FIELD_ID" && -n "$PHASE_OPTION_ID" ]]; then
+            gh api graphql -f query='
+              mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: { singleSelectOptionId: $value }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            ' -f project="$PROJECT_ID" -f item="$ITEM_ID" -f field="$PHASE_FIELD_ID" -f value="$PHASE_OPTION_ID"
+            echo "Updated Phase field to: ${{ steps.phase.outputs.value }}"
+          fi
+
+          # Update Effort field
+          EFFORT_RESULT=$(get_field_option "Effort" "${{ steps.effort.outputs.value }}")
+          EFFORT_FIELD_ID=$(echo "$EFFORT_RESULT" | cut -d'|' -f1)
+          EFFORT_OPTION_ID=$(echo "$EFFORT_RESULT" | cut -d'|' -f2)
+
+          if [[ -n "$EFFORT_FIELD_ID" && -n "$EFFORT_OPTION_ID" ]]; then
+            gh api graphql -f query='
+              mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: { singleSelectOptionId: $value }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            ' -f project="$PROJECT_ID" -f item="$ITEM_ID" -f field="$EFFORT_FIELD_ID" -f value="$EFFORT_OPTION_ID"
+            echo "Updated Effort field to: ${{ steps.effort.outputs.value }}"
+          fi
+
+          echo "Project fields updated successfully"

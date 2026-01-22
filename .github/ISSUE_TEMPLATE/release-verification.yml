@@ -1,0 +1,172 @@
+name: Release Verification
+description: Checklist for verifying a release across all platforms
+title: "[Release]: v"
+labels: ["release", "verification"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Release Verification Checklist
+
+        Use this template to track verification of release artifacts across all supported platforms.
+        Check off each item as you test it. Add notes for any issues found.
+
+  - type: input
+    id: version
+    attributes:
+      label: Release Version
+      description: Which version are you verifying?
+      placeholder: "1.0.12"
+    validations:
+      required: true
+
+  - type: input
+    id: release-url
+    attributes:
+      label: Release URL
+      description: Link to the GitHub Release
+      placeholder: "https://github.com/whizbangdevelopers-org/Qepton/releases/tag/v1.0.12"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Native Platform Tests
+
+        These tests run on physical hardware you have access to.
+
+  - type: checkboxes
+    id: windows-native
+    attributes:
+      label: "Windows (Win10 Laptop)"
+      description: Native Windows testing
+      options:
+        - label: "NSIS installer: Downloads and installs"
+        - label: "NSIS installer: App launches"
+        - label: "NSIS installer: Login/OAuth works"
+        - label: "NSIS installer: Gists load and display"
+        - label: "NSIS installer: App closes cleanly"
+        - label: "NSIS installer: Uninstalls cleanly"
+        - label: "Portable 7z: Extracts and runs"
+
+  - type: checkboxes
+    id: macos-native
+    attributes:
+      label: "macOS (Mac Mini M1)"
+      description: Native macOS ARM64 testing
+      options:
+        - label: "DMG arm64: Mounts and installs to Applications"
+        - label: "DMG arm64: App launches (passes Gatekeeper)"
+        - label: "DMG arm64: Login/OAuth works"
+        - label: "DMG arm64: Gists load and display"
+        - label: "DMG arm64: App closes cleanly"
+        - label: "DMG arm64: Drags to Trash cleanly"
+
+  - type: checkboxes
+    id: ubuntu-native
+    attributes:
+      label: "Ubuntu (Ubuntu Laptop)"
+      description: Native Ubuntu/Debian testing
+      options:
+        - label: "AppImage: Downloads and runs (chmod +x)"
+        - label: "AppImage: App launches"
+        - label: "AppImage: Login/OAuth works"
+        - label: "AppImage: Gists load and display"
+        - label: "AppImage: App closes cleanly"
+        - label: "deb: Installs via dpkg -i"
+        - label: "deb: App launches from menu/CLI"
+        - label: "deb: Uninstalls cleanly (dpkg -r)"
+        - label: "snap: Installs via snap install --dangerous"
+        - label: "snap: App launches"
+        - label: "snap: Uninstalls cleanly"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## VM Platform Tests (NixOS QEMU/KVM)
+
+        These tests run in virtual machines on your NixOS host.
+
+  - type: checkboxes
+    id: fedora-vm
+    attributes:
+      label: "Fedora VM"
+      description: RPM and Flatpak testing
+      options:
+        - label: "rpm: Installs via dnf install"
+        - label: "rpm: App launches"
+        - label: "rpm: Login/OAuth works"
+        - label: "rpm: Uninstalls cleanly"
+        - label: "Flatpak: Installs via flatpak install"
+        - label: "Flatpak: App launches"
+        - label: "Flatpak: Sandbox permissions work (OAuth, filesystem)"
+        - label: "Flatpak: Uninstalls cleanly"
+
+  - type: checkboxes
+    id: arch-vm
+    attributes:
+      label: "Arch Linux VM"
+      description: Pacman package testing (see docs/ARCHLINUX-VM-SETUP.md)
+      options:
+        - label: "pacman: Installs via pacman -U"
+        - label: "pacman: App launches"
+        - label: "pacman: Login/OAuth works"
+        - label: "pacman: Uninstalls cleanly"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Web Platform Tests
+
+  - type: checkboxes
+    id: pwa-test
+    attributes:
+      label: "PWA (GitHub Pages)"
+      description: Progressive Web App testing
+      options:
+        - label: "PWA loads at whizbangdevelopers.github.io/Qepton"
+        - label: "PWA login works"
+        - label: "PWA install prompt appears"
+        - label: "PWA works offline (cached assets)"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Skipped / Not Tested
+
+  - type: checkboxes
+    id: skipped
+    attributes:
+      label: "Platforms Not Tested This Release"
+      description: Check any that were skipped and note why below
+      options:
+        - label: "macOS x64 (Intel) - No hardware"
+        - label: "Windows ARM - No hardware"
+        - label: "Mobile (Capacitor) - Not yet released"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any issues found, blockers, or observations
+      placeholder: |
+        - Fedora VM: Had to install libfuse2 for AppImage
+        - macOS: Gatekeeper warning on first launch (expected)
+    validations:
+      required: false
+
+  - type: textarea
+    id: issues-found
+    attributes:
+      label: Issues Found
+      description: Link any bug issues created during verification
+      placeholder: |
+        - #123 - Snap permission denied for ~/.config
+        - #124 - RPM missing dependency on libnotify
+    validations:
+      required: false

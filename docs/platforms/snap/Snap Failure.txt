@@ -1,0 +1,19 @@
+Why the current build likely fails:
+The existing release.yml installs snapcraft but electron-builder's snap building in GitHub Actions often fails because it needs LXD/Multipass for proper confinement testing. The new workflow uses snapcore/action-build which handles this automatically.
+Quick start:
+bash# 1. Register the snap name (one time)
+snapcraft login
+snapcraft register qepton
+
+# 2. Generate credentials for GitHub
+snapcraft export-login --snaps=qepton --channels=edge,stable credentials.txt
+
+# 3. Add to GitHub: Settings → Secrets → SNAPCRAFT_STORE_CREDENTIALS
+#    (paste contents of credentials.txt)
+
+# 4. Push a tag to trigger the build
+git add .
+git commit -m "Add snap store publishing"
+git tag v1.0.12
+git push origin main --tags
+The workflow will automatically publish to the edge channel on tagged releases. You can then promote to stable via the Snapcraft dashboard or by manually triggering the workflow.

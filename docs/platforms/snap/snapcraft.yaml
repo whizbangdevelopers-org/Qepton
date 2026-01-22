@@ -1,0 +1,92 @@
+name: qepton
+version: '1.0.11'
+summary: Code Snippet Manager powered by GitHub Gist
+description: |
+  Qepton is a powerful code snippet manager that connects to GitHub Gist.
+  Features include smart tagging, fuzzy search, syntax highlighting,
+  and multi-platform support. Built with Quasar Framework.
+
+base: core22
+grade: stable
+confinement: strict
+compression: lzo
+
+architectures:
+  - build-on: amd64
+
+apps:
+  qepton:
+    command: qepton
+    desktop: usr/share/applications/qepton.desktop
+    extensions: [gnome]
+    plugs:
+      - home
+      - network
+      - network-bind
+      - browser-support
+      - password-manager-service
+      - unity7
+    environment:
+      DISABLE_WAYLAND: '1'
+      TMPDIR: $XDG_RUNTIME_DIR
+
+parts:
+  qepton:
+    plugin: nil
+    source: .
+    build-packages:
+      - nodejs
+      - npm
+    stage-packages:
+      - libgtk-3-0
+      - libnotify4
+      - libnss3
+      - libxss1
+      - libxtst6
+      - xdg-utils
+      - libatspi2.0-0
+      - libuuid1
+      - libsecret-1-0
+      - libgbm1
+      - libasound2
+    override-build: |
+      # Install Node.js 20.x
+      curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      apt-get install -y nodejs
+      
+      # Install dependencies
+      npm install
+      
+      # Build electron app (unpacked)
+      npm run build:electron
+      
+      # Copy the unpacked app
+      mkdir -p $CRAFT_PART_INSTALL/opt/qepton
+      cp -r dist/electron/UnPackaged/linux-unpacked/* $CRAFT_PART_INSTALL/opt/qepton/
+      
+      # Create wrapper script
+      mkdir -p $CRAFT_PART_INSTALL/usr/bin
+      cat > $CRAFT_PART_INSTALL/usr/bin/qepton << 'EOF'
+      #!/bin/bash
+      exec /opt/qepton/qepton "$@"
+      EOF
+      chmod +x $CRAFT_PART_INSTALL/usr/bin/qepton
+      
+      # Install desktop file
+      mkdir -p $CRAFT_PART_INSTALL/usr/share/applications
+      cat > $CRAFT_PART_INSTALL/usr/share/applications/qepton.desktop << 'EOF'
+      [Desktop Entry]
+      Name=Qepton
+      Comment=Code Snippet Manager powered by GitHub Gist
+      Exec=qepton %U
+      Icon=${SNAP}/meta/gui/icon.png
+      Terminal=false
+      Type=Application
+      Categories=Development;Utility;
+      StartupWMClass=Qepton
+      EOF
+      
+      # Install icons
+      mkdir -p $CRAFT_PART_INSTALL/meta/gui
+      cp src-electron/icons/icon.png $CRAFT_PART_INSTALL/meta/gui/ || \
+        cp src-electron/icons/256x256.png $CRAFT_PART_INSTALL/meta/gui/icon.png || true

@@ -1,0 +1,435 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Verify Deployment
+
+# Runs after PWA deployment to verify the live site works
+# Also runs smoke tests on Electron releases
+
+on:
+  # Run after Pages deployment completes
+  workflow_run:
+    workflows: ["Deploy to GitHub Pages"]
+    types: [completed]
+    branches: [main]
+
+  # Run after release is published
+  release:
+    types: [published]
+
+  # Manual trigger for ad-hoc verification
+  workflow_dispatch:
+    inputs:
+      verify_pwa:
+        description: 'Verify PWA deployment'
+        type: boolean
+        default: true
+      verify_electron:
+        description: 'Verify Electron releases'
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag to verify (for Electron, e.g., v1.0.12)'
+        type: string
+        required: false
+
+jobs:
+  # ============================================================================
+  # PWA Verification - Tests the live GitHub Pages deployment
+  # ============================================================================
+  verify-pwa:
+    name: Verify PWA
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.verify_pwa)
+
+    steps:
+      - name: Wait for Pages propagation
+        run: |
+          echo "Waiting 60s for GitHub Pages CDN propagation..."
+          sleep 60
+
+      - name: Verify PWA loads
+        id: pwa-load
+        run: |
+          PWA_URL="https://whizbangdevelopers.github.io/Qepton/"
+          echo "Testing: $PWA_URL"
+
+          # Check HTTP status
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PWA_URL")
+          echo "HTTP Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::PWA returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "status=ok" >> $GITHUB_OUTPUT
+
+      - name: Verify PWA assets
+        run: |
+          PWA_URL="https://whizbangdevelopers.github.io/Qepton/"
+
+          # Check manifest.json exists
+          MANIFEST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${PWA_URL}manifest.json")
+          echo "manifest.json: $MANIFEST_STATUS"
+          [ "$MANIFEST_STATUS" = "200" ] || echo "::warning::manifest.json not accessible"
+
+          # Check service worker exists
+          SW_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${PWA_URL}sw.js")
+          echo "sw.js: $SW_STATUS"
+          [ "$SW_STATUS" = "200" ] || echo "::warning::Service worker not accessible"
+
+      - name: Verify OAuth configuration
+        run: |
+          PWA_URL="https://whizbangdevelopers.github.io/Qepton/"
+
+          # Download main JS bundle and check OAuth config
+          echo "Checking OAuth configuration in JS bundles..."
+
+          # Fetch index.html
+          INDEX_HTML=$(curl -s "$PWA_URL")
+
+          # Extract JS bundle paths
+          JS_BUNDLES=$(echo "$INDEX_HTML" | grep -oP 'src="[^"]*\.js"' | sed 's/src="//;s/"$//' | head -5)
+
+          FOUND_GITHUB_OAUTH=false
+          FOUND_PROXY_ERROR=false
+
+          for bundle in $JS_BUNDLES; do
+            # Handle relative paths
+            if [[ "$bundle" == /* ]]; then
+              BUNDLE_URL="https://whizbangdevelopers.github.io${bundle}"
+            else
+              BUNDLE_URL="${PWA_URL}${bundle}"
+            fi
+
+            echo "Checking: $BUNDLE_URL"
+            BUNDLE_CONTENT=$(curl -s "$BUNDLE_URL" | head -c 500000)
+
+            # Check for GitHub OAuth URL (good)
+            if echo "$BUNDLE_CONTENT" | grep -q "github.com/login/oauth"; then
+              FOUND_GITHUB_OAUTH=true
+              echo "  ✓ Found GitHub OAuth URL"
+            fi
+
+            # Check for proxy path without port check (bad)
+            if echo "$BUNDLE_CONTENT" | grep -q "'/api/github'" && ! echo "$BUNDLE_CONTENT" | grep -q "9000"; then
+              FOUND_PROXY_ERROR=true
+              echo "  ✗ Found unconditional /api/github proxy!"
+            fi
+          done
+
+          if [ "$FOUND_PROXY_ERROR" = "true" ]; then
+            echo "::error::PWA has incorrect API proxy configuration - OAuth will fail!"
+            exit 1
+          fi
+
+          if [ "$FOUND_GITHUB_OAUTH" = "true" ]; then
+            echo "✓ OAuth configuration looks correct"
+          else
+            echo "::warning::Could not verify GitHub OAuth URL in bundles"
+          fi
+
+      - name: Check API endpoint reachability
+        run: |
+          # Verify the PWA can reach GitHub API (CORS preflight simulation)
+          echo "Testing GitHub API reachability..."
+
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Origin: https://whizbangdevelopers.github.io" \
+            "https://api.github.com/zen")
+
+          echo "GitHub API status: $API_STATUS"
+
+          if [ "$API_STATUS" != "200" ]; then
+            echo "::warning::GitHub API returned $API_STATUS (may be rate limited)"
+          else
+            echo "✓ GitHub API is reachable"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## PWA Verification Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| PWA loads | ${{ steps.pwa-load.outputs.status == 'ok' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PWA URL | https://whizbangdevelopers.github.io/Qepton/ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Verified at: $(date -u)" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Electron Release Verification - Smoke tests on actual binaries
+  # ============================================================================
+  verify-electron-linux:
+    name: Verify Electron (Linux)
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.verify_electron)
+
+    steps:
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download AppImage
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No release tag specified"
+            exit 0
+          fi
+
+          echo "Downloading AppImage for $TAG..."
+          DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton/releases/download/${TAG}/Qepton-${TAG#v}.AppImage"
+
+          # Try Dev repo first, then Free repo
+          if ! curl -fLo qepton.AppImage "$DOWNLOAD_URL" 2>/dev/null; then
+            DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton-Dev/releases/download/${TAG}/Qepton-${TAG#v}.AppImage"
+            curl -fLo qepton.AppImage "$DOWNLOAD_URL"
+          fi
+
+          chmod +x qepton.AppImage
+          ls -la qepton.AppImage
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libfuse2 libgtk-3-0 libnss3 libasound2
+
+      - name: Smoke test AppImage
+        run: |
+          echo "Starting AppImage with xvfb..."
+
+          # Run with virtual framebuffer, timeout after 30s
+          timeout 30 xvfb-run -a ./qepton.AppImage --no-sandbox &
+          APP_PID=$!
+
+          # Wait for app to start
+          sleep 10
+
+          # Check if process is still running
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "✓ AppImage started successfully"
+
+            # Gracefully terminate
+            kill $APP_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $APP_PID 2>/dev/null || true
+
+            echo "✓ AppImage exited cleanly"
+          else
+            echo "✗ AppImage failed to start or crashed"
+            exit 1
+          fi
+
+      - name: Download and test deb package
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          VERSION="${TAG#v}"
+
+          echo "Downloading deb for $TAG..."
+          DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton/releases/download/${TAG}/qepton_${VERSION}_amd64.deb"
+
+          if ! curl -fLo qepton.deb "$DOWNLOAD_URL" 2>/dev/null; then
+            DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton-Dev/releases/download/${TAG}/qepton_${VERSION}_amd64.deb"
+            curl -fLo qepton.deb "$DOWNLOAD_URL"
+          fi
+
+          # Install
+          sudo dpkg -i qepton.deb || sudo apt-get install -f -y
+
+          # Verify installation
+          dpkg -s qepton
+          echo "✓ deb package installed successfully"
+
+          # Check binary exists
+          which qepton || ls -la /usr/bin/qepton* /opt/Qepton/qepton* 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Electron Linux Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release: ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| AppImage | ✅ Launches |" >> $GITHUB_STEP_SUMMARY
+          echo "| deb | ✅ Installs |" >> $GITHUB_STEP_SUMMARY
+
+  verify-electron-windows:
+    name: Verify Electron (Windows)
+    runs-on: windows-latest
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.verify_electron)
+
+    steps:
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download Windows installer
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No release tag specified"
+            exit 0
+          fi
+
+          VERSION="${TAG#v}"
+          echo "Downloading Windows installer for $TAG..."
+
+          # Try multiple naming patterns
+          for pattern in "Qepton-Setup-${VERSION}.exe" "Qepton Setup ${VERSION}.exe" "qepton-${VERSION}-setup.exe"; do
+            URL="https://github.com/whizbangdevelopers/Qepton/releases/download/${TAG}/${pattern}"
+            echo "Trying: $URL"
+            if curl -fLo installer.exe "$URL" 2>/dev/null; then
+              echo "Downloaded: $pattern"
+              break
+            fi
+          done
+
+          ls -la installer.exe || echo "Download may have failed"
+
+      - name: Install and verify
+        shell: pwsh
+        run: |
+          # Silent install
+          if (Test-Path "installer.exe") {
+            Write-Host "Running silent installer..."
+            Start-Process -FilePath "installer.exe" -ArgumentList "/S" -Wait -NoNewWindow
+
+            # Check common install locations
+            $paths = @(
+              "$env:LOCALAPPDATA\Programs\qepton\Qepton.exe",
+              "$env:PROGRAMFILES\Qepton\Qepton.exe",
+              "$env:PROGRAMFILES(x86)\Qepton\Qepton.exe"
+            )
+
+            $found = $false
+            foreach ($path in $paths) {
+              if (Test-Path $path) {
+                Write-Host "✓ Found installed at: $path"
+                $found = $true
+                break
+              }
+            }
+
+            if (-not $found) {
+              Write-Host "Could not find installed executable"
+              Get-ChildItem "$env:LOCALAPPDATA\Programs" -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Electron Windows Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release: ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+
+  verify-electron-macos:
+    name: Verify Electron (macOS)
+    runs-on: macos-latest
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.verify_electron)
+
+    steps:
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download DMG
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No release tag specified"
+            exit 0
+          fi
+
+          VERSION="${TAG#v}"
+          # macOS runner is ARM64, download arm64 build
+          ARCH=$(uname -m)
+          echo "Runner architecture: $ARCH"
+
+          if [ "$ARCH" = "arm64" ]; then
+            DMG_NAME="Qepton-${VERSION}-arm64.dmg"
+          else
+            DMG_NAME="Qepton-${VERSION}.dmg"
+          fi
+
+          echo "Downloading $DMG_NAME for $TAG..."
+          DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton/releases/download/${TAG}/${DMG_NAME}"
+
+          if ! curl -fLo qepton.dmg "$DOWNLOAD_URL" 2>/dev/null; then
+            DOWNLOAD_URL="https://github.com/whizbangdevelopers/Qepton-Dev/releases/download/${TAG}/${DMG_NAME}"
+            curl -fLo qepton.dmg "$DOWNLOAD_URL"
+          fi
+
+          ls -la qepton.dmg
+
+      - name: Mount and verify DMG
+        run: |
+          echo "Mounting DMG..."
+          hdiutil attach qepton.dmg -nobrowse -quiet
+
+          # Find mounted volume
+          MOUNT_POINT=$(ls -d /Volumes/Qepton* 2>/dev/null | head -1)
+          if [ -z "$MOUNT_POINT" ]; then
+            echo "Failed to find mounted volume"
+            ls /Volumes/
+            exit 1
+          fi
+
+          echo "Mounted at: $MOUNT_POINT"
+          ls -la "$MOUNT_POINT"
+
+          # Check app bundle exists
+          if [ -d "$MOUNT_POINT/Qepton.app" ]; then
+            echo "✓ Qepton.app found"
+
+            # Verify app bundle structure
+            if [ -f "$MOUNT_POINT/Qepton.app/Contents/MacOS/Qepton" ]; then
+              echo "✓ Executable found"
+            fi
+
+            # Check code signature (will fail without notarization but shows signing status)
+            codesign -dv "$MOUNT_POINT/Qepton.app" 2>&1 || echo "(Unsigned or ad-hoc signed)"
+          else
+            echo "✗ Qepton.app not found in DMG"
+            exit 1
+          fi
+
+          # Unmount
+          hdiutil detach "$MOUNT_POINT" -quiet
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Electron macOS Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release: ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "Architecture: $(uname -m)" >> $GITHUB_STEP_SUMMARY

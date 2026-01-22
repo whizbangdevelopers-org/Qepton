@@ -1,0 +1,115 @@
+name: Copy Issue to Dev
+
+# This workflow copies confirmed issues from the Free repo to Dev
+# Triggered when an issue is labeled with 'confirmed'
+# Also updates the issue mapping file in Dev repo
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  copy-to-dev:
+    if: github.event.label.name == 'confirmed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Copy issue to Dev repo
+        id: create-issue
+        env:
+          GH_TOKEN: ${{ secrets.QEPTON_FREE_REPO_PAT }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Extract issue details
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+          ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+
+          # Determine label for Dev repo (bug or feature)
+          DEV_LABELS="from-free"
+          if echo "$ISSUE_LABELS" | grep -q "bug"; then
+            DEV_LABELS="$DEV_LABELS,bug"
+          fi
+          if echo "$ISSUE_LABELS" | grep -q "feature"; then
+            DEV_LABELS="$DEV_LABELS,feature"
+          fi
+          if echo "$ISSUE_LABELS" | grep -q "enhancement"; then
+            DEV_LABELS="$DEV_LABELS,enhancement"
+          fi
+
+          # Write issue body to temp file to avoid shell interpretation issues
+          cat > /tmp/issue_body.md << 'BODYEOF'
+          **Copied from:**
+          BODYEOF
+          echo "${ISSUE_URL}" >> /tmp/issue_body.md
+          echo "" >> /tmp/issue_body.md
+          echo "---" >> /tmp/issue_body.md
+          echo "" >> /tmp/issue_body.md
+          echo "${ISSUE_BODY}" >> /tmp/issue_body.md
+
+          # Create issue in Dev repo
+          NEW_ISSUE_URL=$(gh issue create \
+            --repo whizbangdevelopers/Qepton-Dev \
+            --title "Free #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+            --label "$DEV_LABELS" \
+            --body-file /tmp/issue_body.md)
+
+          echo "Created issue in Dev: $NEW_ISSUE_URL"
+
+          # Extract Dev issue number from URL
+          DEV_ISSUE_NUMBER=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
+          echo "dev_issue_number=$DEV_ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "free_issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+          # Add comment to original issue linking to Dev issue
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --body "This issue has been accepted and copied to our internal tracker for development."
+
+      - name: Checkout Dev repo
+        uses: actions/checkout@v4
+        with:
+          repository: whizbangdevelopers/Qepton-Dev
+          token: ${{ secrets.QEPTON_FREE_REPO_PAT }}
+          path: dev-repo
+
+      - name: Update issue mapping
+        working-directory: dev-repo
+        run: |
+          FREE_NUM="${{ steps.create-issue.outputs.free_issue_number }}"
+          DEV_NUM="${{ steps.create-issue.outputs.dev_issue_number }}"
+
+          MAPPING_FILE=".github/issue-mapping.json"
+
+          if [[ ! -f "$MAPPING_FILE" ]]; then
+            echo "Creating new mapping file"
+            echo '{"_comment":"Bidirectional issue mapping","dev-to-free":{},"free-to-dev":{}}' > "$MAPPING_FILE"
+          fi
+
+          # Add new mapping entries
+          jq --arg d "$DEV_NUM" --arg f "$FREE_NUM" \
+            '.["dev-to-free"][$d] = $f | .["free-to-dev"][$f] = $d' \
+            "$MAPPING_FILE" > /tmp/mapping.json && mv /tmp/mapping.json "$MAPPING_FILE"
+
+          echo "Added mapping: Dev #$DEV_NUM <-> Free #$FREE_NUM"
+          cat "$MAPPING_FILE"
+
+      - name: Commit mapping update
+        working-directory: dev-repo
+        env:
+          GH_TOKEN: ${{ secrets.QEPTON_FREE_REPO_PAT }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .github/issue-mapping.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update issue mapping: Dev #${{ steps.create-issue.outputs.dev_issue_number }} <-> Free #${{ steps.create-issue.outputs.free_issue_number }}
+
+          [skip-sync]"
+            git push
+            echo "Mapping updated and pushed"
+          fi

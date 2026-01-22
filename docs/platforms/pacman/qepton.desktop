@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Qepton
+Comment=Prompt and Code Snippet Manager powered by GitHub Gist
+Exec=/usr/bin/qepton %U
+Icon=qepton
+Type=Application
+Categories=Development;Utility;
+Keywords=gist;snippet;code;github;
+StartupNotify=true
+StartupWMClass=Qepton
+MimeType=x-scheme-handler/qepton;

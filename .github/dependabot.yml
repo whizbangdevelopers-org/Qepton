@@ -1,0 +1,53 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      # Group minor and patch updates together
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore major version updates for framework dependencies
+    # These require upstream compatibility testing before upgrading
+    ignore:
+      # Quasar ecosystem - wait for upstream guidance
+      # Check: https://github.com/quasarframework/quasar/releases
+      - dependency-name: "quasar"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@quasar/*"
+        update-types: ["version-update:semver-major"]
+      # Electron - requires extensive compatibility testing
+      # Check: https://www.electronjs.org/docs/latest/breaking-changes
+      - dependency-name: "electron"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "electron-builder"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci-cd"
+      - "automated"
+    commit-message:
+      prefix: "chore(actions):"
