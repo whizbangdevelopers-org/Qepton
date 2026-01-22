@@ -155,7 +155,7 @@ jobs:
           flatpak build-bundle repo qepton.flatpak com.whizbangdevelopers.Qepton
 
       - name: Upload Flatpak artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: qepton-flatpak
           path: flatpak-build/qepton.flatpak
