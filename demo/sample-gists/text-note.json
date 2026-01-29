@@ -1,0 +1,9 @@
+{
+  "description": "Meeting Notes Template #notes #template",
+  "public": true,
+  "files": {
+    "meeting-notes.txt": {
+      "content": "MEETING NOTES\n=============\n\nDate:     [Date]\nTime:     [Time]\nLocation: [Location/Video Call Link]\n\nATTENDEES\n---------\n- [Name 1] (Role)\n- [Name 2] (Role)\n- [Name 3] (Role)\n\nAGENDA\n------\n1. [Topic 1]\n2. [Topic 2]\n3. [Topic 3]\n\nDISCUSSION NOTES\n----------------\n\n### Topic 1: [Title]\n\nKey Points:\n- Point 1\n- Point 2\n\nDecisions Made:\n- Decision 1\n\n### Topic 2: [Title]\n\nKey Points:\n- Point 1\n\nQuestions/Concerns:\n- Question 1\n\nACTION ITEMS\n------------\n[ ] Task 1 - Assigned to: [Name] - Due: [Date]\n[ ] Task 2 - Assigned to: [Name] - Due: [Date]\n[ ] Task 3 - Assigned to: [Name] - Due: [Date]\n\nNEXT MEETING\n------------\nDate: [Next Date]\nTopics to Cover:\n- Follow-up on action items\n- [Topic]\n\n---\nNotes taken by: [Your Name]"
+    }
+  }
+}

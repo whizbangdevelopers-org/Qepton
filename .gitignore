@@ -5,10 +5,10 @@ Thumbs.db
 # Dependencies
 node_modules/
 .npm
+.pnpm-debug.log*
 
 # Quasar build outputs
 .quasar
-/dist/
 
 # Cordova
 /src-cordova/node_modules
@@ -22,11 +22,13 @@ node_modules/
 /src-capacitor/android/
 /src-capacitor/ios/
 
+
 # BEX
 /src-bex/www
 
 # Electron
 /src-electron/dist
+
 
 # IDE
 .idea/
@@ -40,21 +42,26 @@ node_modules/
 *.sublime-workspace
 
 # Logs
-*.log
-logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Playwright outputs
+playwright-report/
+test-results/
 
 # Temporary files
 tmp/
 
-# Dev-only files (these belong in Qepton-Dev, not this release repo)
-/scripts/
-/.githooks/
-/docker-build/
-/e2e-docker/
-/tests/
-/docs/
-/flatpak/
-playwright.config.ts
-CLAUDE.md
-TESTING.md
-DEVELOPMENT.md
+# Zen
+.zencoder/
+.zenflow/
+
+# CI configs (private)
+.drone.yml
+
+
+# Logs
+logs/

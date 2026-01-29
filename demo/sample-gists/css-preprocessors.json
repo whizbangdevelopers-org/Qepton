@@ -1,0 +1,12 @@
+{
+  "description": "CSS Preprocessor Snippets #scss #sass #less #styling",
+  "public": true,
+  "files": {
+    "mixins.scss": {
+      "content": "// SCSS Mixins and Utilities\n\n// Responsive breakpoints\n$breakpoints: (\n  'sm': 640px,\n  'md': 768px,\n  'lg': 1024px,\n  'xl': 1280px,\n);\n\n@mixin respond-to($breakpoint) {\n  @if map-has-key($breakpoints, $breakpoint) {\n    @media (min-width: map-get($breakpoints, $breakpoint)) {\n      @content;\n    }\n  } @else {\n    @warn \"Unknown breakpoint: #{$breakpoint}\";\n  }\n}\n\n// Flexbox utilities\n@mixin flex-center {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n\n@mixin flex-between {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n}\n\n// Truncate text\n@mixin truncate($lines: 1) {\n  @if $lines == 1 {\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n  } @else {\n    display: -webkit-box;\n    -webkit-line-clamp: $lines;\n    -webkit-box-orient: vertical;\n    overflow: hidden;\n  }\n}\n\n// Usage example\n.card {\n  @include flex-center;\n  padding: 1rem;\n\n  &__title {\n    @include truncate(2);\n  }\n\n  @include respond-to('md') {\n    padding: 2rem;\n  }\n}"
+    },
+    "variables.less": {
+      "content": "// LESS Variables and Mixins\n\n// Color palette\n@primary: #6366f1;\n@secondary: #8b5cf6;\n@success: #22c55e;\n@warning: #f59e0b;\n@error: #ef4444;\n\n// Spacing scale\n@spacing-xs: 0.25rem;\n@spacing-sm: 0.5rem;\n@spacing-md: 1rem;\n@spacing-lg: 1.5rem;\n@spacing-xl: 2rem;\n\n// Typography\n@font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n@font-mono: 'Fira Code', 'JetBrains Mono', monospace;\n\n// Mixins\n.transition(@property: all, @duration: 0.2s, @timing: ease) {\n  transition: @property @duration @timing;\n}\n\n.shadow(@level: 1) when (@level = 1) {\n  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);\n}\n.shadow(@level: 1) when (@level = 2) {\n  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);\n}\n.shadow(@level: 1) when (@level = 3) {\n  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);\n}\n\n// Button mixin\n.button-variant(@bg, @color: white) {\n  background-color: @bg;\n  color: @color;\n  border: none;\n  padding: @spacing-sm @spacing-md;\n  border-radius: 4px;\n  cursor: pointer;\n  .transition();\n\n  &:hover {\n    background-color: darken(@bg, 10%);\n  }\n}\n\n// Usage\n.btn-primary {\n  .button-variant(@primary);\n}\n\n.btn-success {\n  .button-variant(@success);\n}"
+    }
+  }
+}

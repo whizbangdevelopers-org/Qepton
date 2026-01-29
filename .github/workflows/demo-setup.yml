@@ -1,0 +1,114 @@
+name: Demo Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      recreate:
+        description: 'Delete and recreate repo if exists'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check if repo exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          if gh repo view qepton-demo/qepton-demo.github.io &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete existing repo (if recreate)
+        if: inputs.recreate && steps.check.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          echo "Deleting existing repo..."
+          gh repo delete qepton-demo/qepton-demo.github.io --yes
+
+      - name: Create demo repo
+        if: steps.check.outputs.exists == 'false' || inputs.recreate
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          echo "Creating qepton-demo.github.io repo..."
+          gh repo create qepton-demo/qepton-demo.github.io \
+            --public \
+            --description "Qepton Demo - Try Qepton without signing up"
+
+      - name: Clone and setup demo app
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          # Clone the new repo
+          git clone https://x-access-token:${GH_TOKEN}@github.com/qepton-demo/qepton-demo.github.io.git demo-repo
+          cd demo-repo
+
+          # Configure git
+          git config user.name "qepton-demo"
+          git config user.email "qepton-demos@whizbangdevelopers.com"
+
+          # Create initial structure
+          mkdir -p .github/workflows
+
+          # Create a placeholder index until full app is deployed
+          cat > index.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Qepton Demo</title>
+            <style>
+              body { font-family: system-ui; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
+              .container { text-align: center; padding: 2rem; }
+              h1 { color: #0ea5e9; }
+              a { color: #0ea5e9; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Qepton Demo</h1>
+              <p>Demo environment coming soon!</p>
+              <p><a href="https://whizbangdevelopers-org.github.io/Qepton/">Try the full app →</a></p>
+            </div>
+          </body>
+          </html>
+          HTMLEOF
+
+          # Commit and push
+          git add -A
+          git commit -m "Initial demo setup" || echo "No changes to commit"
+          git push -u origin main || git push -u origin master
+
+      - name: Enable GitHub Pages
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          # Enable pages from main branch root
+          gh api repos/qepton-demo/qepton-demo.github.io/pages \
+            -X POST \
+            -f build_type=legacy \
+            -f source='{"branch":"main","path":"/"}' \
+            2>/dev/null || echo "Pages may already be enabled"
+
+      - name: Summary
+        run: |
+          echo "## Demo Setup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Repo: https://github.com/qepton-demo/qepton-demo.github.io" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: https://qepton-demo.github.io" >> $GITHUB_STEP_SUMMARY

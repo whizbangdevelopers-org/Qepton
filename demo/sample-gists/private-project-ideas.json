@@ -1,0 +1,9 @@
+{
+  "description": "Project Ideas and Backlog #ideas #private #planning",
+  "public": false,
+  "files": {
+    "project-ideas.md": {
+      "content": "# Project Ideas Backlog\n\n## High Priority\n\n### 1. AI-Powered Code Review Bot\n- Integrate with GitHub PRs\n- Use Claude API for analysis\n- Provide security and performance suggestions\n- **Status**: Planning\n\n### 2. Personal Finance Dashboard\n- Connect to bank APIs\n- Visualize spending patterns\n- Budget tracking and alerts\n- **Status**: Research\n\n## Medium Priority\n\n### 3. Smart Home Automation\n- Home Assistant integration\n- Voice control via local LLM\n- Energy monitoring\n\n### 4. Documentation Generator\n- Parse codebase automatically\n- Generate API docs\n- Keep in sync with code changes\n\n## Someday/Maybe\n\n- CLI tool for managing dotfiles across machines\n- Browser extension for saving code snippets\n- Local-first note-taking app with sync\n- Rust-based alternative to common CLI tools\n\n---\n*Last updated: 2024-01-15*\n"
+    }
+  }
+}

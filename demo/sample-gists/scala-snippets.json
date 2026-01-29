@@ -1,0 +1,9 @@
+{
+  "description": "Scala Functional Patterns #scala #functional",
+  "public": true,
+  "files": {
+    "Monads.scala": {
+      "content": "package examples\n\n/**\n * Common monad patterns in Scala.\n */\nobject MonadExamples {\n  \n  // Option for null safety\n  def findUser(id: Int): Option[User] = \n    users.find(_.id == id)\n  \n  def getUserEmail(id: Int): Option[String] =\n    for {\n      user <- findUser(id)\n      email <- user.email\n    } yield email\n  \n  // Either for error handling\n  def divide(a: Int, b: Int): Either[String, Int] =\n    if (b == 0) Left(\"Division by zero\")\n    else Right(a / b)\n  \n  def calculate(a: Int, b: Int, c: Int): Either[String, Int] =\n    for {\n      x <- divide(a, b)\n      y <- divide(x, c)\n    } yield y\n  \n  // Try for exception handling\n  import scala.util.{Try, Success, Failure}\n  \n  def parseJson(json: String): Try[Map[String, Any]] =\n    Try(JSON.parse(json))\n  \n  def safeOperation[A](op: => A): Try[A] = Try(op)\n  \n  // Pattern matching with case classes\n  sealed trait Result[+A]\n  case class Ok[A](value: A) extends Result[A]\n  case class Err(message: String) extends Result[Nothing]\n  \n  def process(result: Result[Int]): String = result match {\n    case Ok(value) if value > 0 => s\"Positive: $value\"\n    case Ok(value) => s\"Non-positive: $value\"\n    case Err(msg) => s\"Error: $msg\"\n  }\n}"
+    }
+  }
+}

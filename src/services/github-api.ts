@@ -92,6 +92,14 @@ class GitHubAPIService {
   }
 
   /**
+   * Clear authentication token (for demo mode)
+   */
+  clearToken(): void {
+    this.token = null
+    console.debug(`${TAG} Token cleared`)
+  }
+
+  /**
    * Set Enterprise GitHub host
    */
   setEnterpriseHost(host: string): void {

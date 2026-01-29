@@ -1,0 +1,85 @@
+name: Demo Reset Gists
+
+on:
+  schedule:
+    # Run every Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      delete_all:
+        description: 'Delete ALL gists before recreating samples'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete user-created gists
+        if: inputs.delete_all
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          echo "Fetching all gists..."
+          gists=$(gh api gists --jq '.[].id' 2>/dev/null || echo "")
+
+          if [ -n "$gists" ]; then
+            echo "Deleting all gists..."
+            for gist_id in $gists; do
+              echo "Deleting gist: $gist_id"
+              gh api gists/$gist_id -X DELETE || true
+            done
+          else
+            echo "No gists to delete"
+          fi
+
+      - name: Get existing sample gist IDs
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          # Find gists that match our sample descriptions
+          echo "Checking for existing sample gists..."
+
+          welcome_id=$(gh api gists --jq '.[] | select(.description | contains("#qepton #welcome")) | .id' 2>/dev/null | head -1 || echo "")
+          js_id=$(gh api gists --jq '.[] | select(.description | contains("#javascript #utilities")) | .id' 2>/dev/null | head -1 || echo "")
+          py_id=$(gh api gists --jq '.[] | select(.description | contains("#python #utilities")) | .id' 2>/dev/null | head -1 || echo "")
+
+          echo "welcome_id=$welcome_id" >> $GITHUB_OUTPUT
+          echo "js_id=$js_id" >> $GITHUB_OUTPUT
+          echo "py_id=$py_id" >> $GITHUB_OUTPUT
+
+      - name: Create/Update sample gists
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          cd demo/sample-gists
+
+          for file in *.json; do
+            echo "Processing $file..."
+
+            # Check if this gist already exists based on description
+            description=$(jq -r '.description' "$file")
+            existing_id=$(gh api gists --jq ".[] | select(.description == \"$description\") | .id" 2>/dev/null | head -1 || echo "")
+
+            if [ -n "$existing_id" ]; then
+              echo "Updating existing gist: $existing_id"
+              gh api gists/$existing_id -X PATCH --input "$file" || echo "Failed to update $file"
+            else
+              echo "Creating new gist from $file"
+              gh api gists -X POST --input "$file" || echo "Failed to create $file"
+            fi
+          done
+
+      - name: Summary
+        env:
+          GH_TOKEN: ${{ secrets.DEMO_GITHUB_TOKEN }}
+        run: |
+          echo "## Demo Gists Reset Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Current Gists" >> $GITHUB_STEP_SUMMARY
+          gh api gists --jq '.[] | "- [\(.description)](\(.html_url))"' >> $GITHUB_STEP_SUMMARY || echo "- No gists found" >> $GITHUB_STEP_SUMMARY

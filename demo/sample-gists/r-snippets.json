@@ -1,0 +1,9 @@
+{
+  "description": "R Data Analysis Scripts #r #datascience #statistics",
+  "public": true,
+  "files": {
+    "data_analysis.r": {
+      "content": "# R Data Analysis Example\nlibrary(tidyverse)\nlibrary(ggplot2)\n\n# Create sample data\nset.seed(42)\ndf <- tibble(\n  date = seq(as.Date(\"2024-01-01\"), by = \"day\", length.out = 100),\n  sales = rnorm(100, mean = 1000, sd = 200),\n  category = sample(c(\"A\", \"B\", \"C\"), 100, replace = TRUE)\n)\n\n# Summary statistics by category\nsummary_stats <- df %>%\n  group_by(category) %>%\n  summarise(\n    count = n(),\n    mean_sales = mean(sales),\n    sd_sales = sd(sales),\n    median_sales = median(sales),\n    .groups = \"drop\"\n  )\n\nprint(summary_stats)\n\n# Time series plot\nggplot(df, aes(x = date, y = sales, color = category)) +\n  geom_line(alpha = 0.7) +\n  geom_smooth(method = \"loess\", se = TRUE) +\n  labs(\n    title = \"Daily Sales by Category\",\n    x = \"Date\",\n    y = \"Sales ($)\"\n  ) +\n  theme_minimal() +\n  scale_color_brewer(palette = \"Set2\")\n\n# Box plot comparison\nggplot(df, aes(x = category, y = sales, fill = category)) +\n  geom_boxplot() +\n  geom_jitter(width = 0.2, alpha = 0.3) +\n  labs(title = \"Sales Distribution by Category\") +\n  theme_minimal()"
+    }
+  }
+}

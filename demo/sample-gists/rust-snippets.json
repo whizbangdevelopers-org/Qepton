@@ -1,0 +1,12 @@
+{
+  "description": "Rust Error Handling Patterns #rust #errors",
+  "public": true,
+  "files": {
+    "custom_error.rs": {
+      "content": "use std::error::Error;\nuse std::fmt;\n\n/// Custom error type with context\n#[derive(Debug)]\npub struct AppError {\n    kind: ErrorKind,\n    message: String,\n    source: Option<Box<dyn Error + Send + Sync>>,\n}\n\n#[derive(Debug, Clone, Copy)]\npub enum ErrorKind {\n    NotFound,\n    InvalidInput,\n    Internal,\n}\n\nimpl AppError {\n    pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {\n        Self {\n            kind,\n            message: message.into(),\n            source: None,\n        }\n    }\n\n    pub fn with_source(mut self, source: impl Error + Send + Sync + 'static) -> Self {\n        self.source = Some(Box::new(source));\n        self\n    }\n\n    pub fn kind(&self) -> ErrorKind {\n        self.kind\n    }\n}\n\nimpl fmt::Display for AppError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        write!(f, \"[{:?}] {}\", self.kind, self.message)\n    }\n}\n\nimpl Error for AppError {\n    fn source(&self) -> Option<&(dyn Error + 'static)> {\n        self.source.as_ref().map(|e| e.as_ref() as _)\n    }\n}"
+    },
+    "result_extensions.rs": {
+      "content": "/// Extension trait for Result with additional combinators\npub trait ResultExt<T, E> {\n    /// Log error and convert to Option\n    fn log_err(self) -> Option<T>;\n    \n    /// Provide context for the error\n    fn context(self, msg: &str) -> Result<T, String>\n    where\n        E: std::fmt::Display;\n}\n\nimpl<T, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {\n    fn log_err(self) -> Option<T> {\n        match self {\n            Ok(v) => Some(v),\n            Err(e) => {\n                eprintln!(\"Error: {}\", e);\n                None\n            }\n        }\n    }\n\n    fn context(self, msg: &str) -> Result<T, String> {\n        self.map_err(|e| format!(\"{}: {}\", msg, e))\n    }\n}\n\n// Usage\nfn main() -> Result<(), String> {\n    let value: Result<i32, &str> = Err(\"not found\");\n    let _ = value.context(\"Failed to load config\")?;\n    Ok(())\n}"
+    }
+  }
+}

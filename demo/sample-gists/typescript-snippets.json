@@ -1,0 +1,12 @@
+{
+  "description": "TypeScript Utility Types #typescript #types",
+  "public": true,
+  "files": {
+    "utility-types.ts": {
+      "content": "/**\n * Common TypeScript utility types for everyday use\n */\n\n// Make all properties optional recursively\ntype DeepPartial<T> = {\n  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];\n};\n\n// Make specific properties required\ntype RequireFields<T, K extends keyof T> = T & Required<Pick<T, K>>;\n\n// Extract non-null values from a type\ntype NonNullableFields<T> = {\n  [P in keyof T]: NonNullable<T[P]>;\n};\n\n// Usage examples\ninterface User {\n  id: number;\n  name: string;\n  email?: string;\n  settings?: {\n    theme: string;\n    notifications: boolean;\n  };\n}\n\ntype PartialUser = DeepPartial<User>;\ntype UserWithEmail = RequireFields<User, 'email'>;"
+    },
+    "type-guards.ts": {
+      "content": "/**\n * Type guard utilities for runtime type checking\n */\n\n// Check if value is defined\nfunction isDefined<T>(value: T | undefined | null): value is T {\n  return value !== undefined && value !== null;\n}\n\n// Check if value is an object\nfunction isObject(value: unknown): value is Record<string, unknown> {\n  return typeof value === 'object' && value !== null && !Array.isArray(value);\n}\n\n// Check if value has a specific property\nfunction hasProperty<K extends string>(\n  obj: unknown,\n  key: K\n): obj is Record<K, unknown> {\n  return isObject(obj) && key in obj;\n}\n\n// Usage\nconst data: unknown = { name: 'John', age: 30 };\n\nif (hasProperty(data, 'name')) {\n  console.log(data.name); // TypeScript knows 'name' exists\n}"
+    }
+  }
+}

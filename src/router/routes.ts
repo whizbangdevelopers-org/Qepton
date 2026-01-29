@@ -7,6 +7,14 @@ declare module 'vue-router' {
   }
 }
 
+// Check if running in demo mode (build-time)
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true'
+
+// Use demo login page in demo mode, regular login otherwise
+const loginComponent = isDemoMode
+  ? () => import('pages/DemoLoginPage.vue')
+  : () => import('pages/LoginPage.vue')
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -18,7 +26,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     component: () => import('layouts/AuthLayout.vue'),
-    children: [{ path: '', component: () => import('pages/LoginPage.vue') }]
+    children: [{ path: '', component: loginComponent }]
   },
 
   // Always leave this as last one,

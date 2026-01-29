@@ -1,0 +1,12 @@
+{
+  "description": "Ruby Idioms and Patterns #ruby #patterns",
+  "public": true,
+  "files": {
+    "enumerable_tricks.rb": {
+      "content": "# Ruby Enumerable tricks and patterns\n\n# Group and count occurrences\nwords = %w[apple banana apple cherry banana apple]\nword_counts = words.tally\n# => {\"apple\"=>3, \"banana\"=>2, \"cherry\"=>1}\n\n# Transform hash values\nprices = { apple: 1.50, banana: 0.75, cherry: 2.00 }\ndiscounted = prices.transform_values { |v| (v * 0.9).round(2) }\n# => {:apple=>1.35, :banana=>0.68, :cherry=>1.8}\n\n# Partition into two arrays\nnumbers = (1..10).to_a\nevens, odds = numbers.partition(&:even?)\n# evens => [2, 4, 6, 8, 10]\n# odds => [1, 3, 5, 7, 9]\n\n# Find with default\nusers = [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }]\nuser = users.find(-> { { name: 'Guest', age: 0 } }) { |u| u[:name] == 'Charlie' }\n# => {:name=>\"Guest\", :age=>0}\n\n# Chain transformations\nresult = (1..100)\n  .lazy\n  .select { |n| n % 3 == 0 }\n  .map { |n| n * 2 }\n  .take(5)\n  .to_a\n# => [6, 12, 18, 24, 30]"
+    },
+    "meta_programming.rb": {
+      "content": "# Ruby metaprogramming examples\n\nmodule Cacheable\n  def self.included(base)\n    base.extend(ClassMethods)\n  end\n\n  module ClassMethods\n    def cache_method(method_name)\n      original_method = instance_method(method_name)\n      cache_var = \"@_cache_#{method_name}\"\n\n      define_method(method_name) do |*args|\n        cache = instance_variable_get(cache_var) || {}\n        \n        unless cache.key?(args)\n          cache[args] = original_method.bind(self).call(*args)\n          instance_variable_set(cache_var, cache)\n        end\n        \n        cache[args]\n      end\n    end\n  end\nend\n\n# Usage\nclass Calculator\n  include Cacheable\n\n  def fibonacci(n)\n    return n if n <= 1\n    fibonacci(n - 1) + fibonacci(n - 2)\n  end\n  cache_method :fibonacci\nend\n\ncalc = Calculator.new\nputs calc.fibonacci(40) # Fast due to memoization"
+    }
+  }
+}

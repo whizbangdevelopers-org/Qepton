@@ -1,0 +1,9 @@
+{
+  "description": "Welcome to Qepton Demo #qepton #welcome",
+  "public": true,
+  "files": {
+    "welcome.md": {
+      "content": "# Welcome to Qepton Demo!\n\nThis is a **playground** where you can try out Qepton's features.\n\n## What you can do here\n\n- Create and edit gists\n- Organize with tags\n- Try the code editor\n- Explore the interface\n\n## Note\n\nThis demo resets weekly, so don't store anything important here!\n\n---\n\n*Powered by [Qepton](https://whizbangdevelopers-org.github.io/Qepton/)*"
+    }
+  }
+}

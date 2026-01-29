@@ -1,0 +1,12 @@
+{
+  "description": "React Hooks and Components #react #typescript #frontend",
+  "public": true,
+  "files": {
+    "useDebounce.tsx": {
+      "content": "import { useState, useEffect } from 'react';\n\n/**\n * Debounce a value - useful for search inputs.\n */\nexport function useDebounce<T>(value: T, delay: number): T {\n  const [debouncedValue, setDebouncedValue] = useState<T>(value);\n\n  useEffect(() => {\n    const handler = setTimeout(() => {\n      setDebouncedValue(value);\n    }, delay);\n\n    return () => clearTimeout(handler);\n  }, [value, delay]);\n\n  return debouncedValue;\n}\n\n// Usage example\nfunction SearchComponent() {\n  const [query, setQuery] = useState('');\n  const debouncedQuery = useDebounce(query, 300);\n\n  useEffect(() => {\n    if (debouncedQuery) {\n      // Fetch search results\n      console.log('Searching for:', debouncedQuery);\n    }\n  }, [debouncedQuery]);\n\n  return (\n    <input\n      type=\"text\"\n      value={query}\n      onChange={(e) => setQuery(e.target.value)}\n      placeholder=\"Search...\"\n    />\n  );\n}"
+    },
+    "Modal.tsx": {
+      "content": "import { useEffect, useRef, type ReactNode } from 'react';\nimport { createPortal } from 'react-dom';\n\ninterface ModalProps {\n  isOpen: boolean;\n  onClose: () => void;\n  title: string;\n  children: ReactNode;\n}\n\nexport function Modal({ isOpen, onClose, title, children }: ModalProps) {\n  const overlayRef = useRef<HTMLDivElement>(null);\n\n  useEffect(() => {\n    const handleEscape = (e: KeyboardEvent) => {\n      if (e.key === 'Escape') onClose();\n    };\n\n    if (isOpen) {\n      document.addEventListener('keydown', handleEscape);\n      document.body.style.overflow = 'hidden';\n    }\n\n    return () => {\n      document.removeEventListener('keydown', handleEscape);\n      document.body.style.overflow = '';\n    };\n  }, [isOpen, onClose]);\n\n  if (!isOpen) return null;\n\n  return createPortal(\n    <div\n      ref={overlayRef}\n      className=\"modal-overlay\"\n      onClick={(e) => e.target === overlayRef.current && onClose()}\n    >\n      <div className=\"modal-content\" role=\"dialog\" aria-modal=\"true\">\n        <header className=\"modal-header\">\n          <h2>{title}</h2>\n          <button onClick={onClose} aria-label=\"Close\">&times;</button>\n        </header>\n        <div className=\"modal-body\">{children}</div>\n      </div>\n    </div>,\n    document.body\n  );\n}"
+    }
+  }
+}

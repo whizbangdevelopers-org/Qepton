@@ -6,11 +6,14 @@
 import { defineStore } from 'pinia'
 import { githubAPI } from 'src/services/github-api'
 import type { AuthState } from 'src/types/store'
+import type { User } from 'src/types/github'
 
 // Lazy imports to avoid circular dependency issues at module load time
 // These are only used inside the logout() action after Pinia is initialized
 let _useGistsStore: typeof import('./gists').useGistsStore | null = null
 let _useSearchStore: typeof import('./search').useSearchStore | null = null
+let _useSettingsStore: typeof import('./settings').useSettingsStore | null = null
+let _useUiStore: typeof import('./ui').useUiStore | null = null
 
 async function getGistsStore() {
   if (!_useGistsStore) {
@@ -28,12 +31,42 @@ async function getSearchStore() {
   return _useSearchStore()
 }
 
+async function getSettingsStore() {
+  if (!_useSettingsStore) {
+    const module = await import('./settings')
+    _useSettingsStore = module.useSettingsStore
+  }
+  return _useSettingsStore()
+}
+
+async function getUiStore() {
+  if (!_useUiStore) {
+    const module = await import('./ui')
+    _useUiStore = module.useUiStore
+  }
+  return _useUiStore()
+}
+
+// Demo user configuration
+const DEMO_USERNAME = 'qepton-demo'
+const DEMO_USER = {
+  login: DEMO_USERNAME,
+  id: 0,
+  avatar_url: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y&s=200',
+  name: 'Demo User',
+  public_gists: 0,
+  html_url: `https://github.com/${DEMO_USERNAME}`,
+  type: 'User'
+} as User
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     accessToken: null,
     user: null,
     isAuthenticated: false,
-    isLoading: false
+    isLoading: false,
+    isDemoMode: false,
+    demoUsername: undefined
   }),
 
   getters: {
@@ -96,6 +129,40 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
+     * Login as demo user
+     * If token provided, uses authenticated API for private gists
+     * Otherwise uses unauthenticated API for public gists only
+     */
+    async loginAsDemo(token?: string): Promise<void> {
+      this.isLoading = true
+
+      try {
+        if (token) {
+          // Authenticated demo mode - can access private gists
+          githubAPI.setToken(token)
+          this.accessToken = token
+        } else {
+          // Unauthenticated demo mode - public gists only
+          githubAPI.clearToken()
+          this.accessToken = null
+        }
+
+        // Set demo user
+        this.user = DEMO_USER
+        this.isAuthenticated = true
+        this.isDemoMode = true
+        this.demoUsername = DEMO_USERNAME
+
+        // Mark as demo mode in localStorage
+        localStorage.setItem('qepton-demo-mode', 'true')
+
+        console.debug('[Auth] Demo login successful', token ? '(authenticated)' : '(unauthenticated)')
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    /**
      * Login with OAuth code
      */
     async loginWithOAuth(code: string, clientId: string, clientSecret: string): Promise<void> {
@@ -122,12 +189,17 @@ export const useAuthStore = defineStore('auth', {
      * Logout (clear session)
      */
     async logout(): Promise<void> {
+      const wasDemo = this.isDemoMode
+
       this.accessToken = null
       this.user = null
       this.isAuthenticated = false
+      this.isDemoMode = false
+      this.demoUsername = undefined
 
       // Clear from localStorage
       localStorage.removeItem('github-token')
+      localStorage.removeItem('qepton-demo-mode')
 
       // Reset related stores (using lazy imports to avoid circular dependency)
       const gistsStore = await getGistsStore()
@@ -135,6 +207,18 @@ export const useAuthStore = defineStore('auth', {
 
       const searchStore = await getSearchStore()
       searchStore.$reset()
+
+      // In demo mode, also reset settings and UI to defaults
+      // This ensures next demo user starts fresh
+      if (wasDemo) {
+        const settingsStore = await getSettingsStore()
+        settingsStore.$reset()
+
+        const uiStore = await getUiStore()
+        uiStore.$reset()
+
+        console.debug('[Auth] Demo logout - all settings reset to defaults')
+      }
 
       console.debug('[Auth] Logged out')
     },
@@ -195,6 +279,6 @@ export const useAuthStore = defineStore('auth', {
 
   // Persist auth state - include isAuthenticated and user for immediate restore
   persist: {
-    paths: ['accessToken', 'isAuthenticated', 'user']
+    paths: ['accessToken', 'isAuthenticated', 'user', 'isDemoMode', 'demoUsername']
   }
 })

@@ -1,0 +1,12 @@
+{
+  "description": "Markdown Documentation Templates #markdown #docs",
+  "public": true,
+  "files": {
+    "API-ENDPOINT.md": {
+      "content": "# API Endpoint Documentation\n\n## `POST /api/v1/users`\n\nCreates a new user account.\n\n### Request Headers\n\n| Header | Required | Description |\n|--------|----------|-------------|\n| `Authorization` | Yes | Bearer token |\n| `Content-Type` | Yes | `application/json` |\n\n### Request Body\n\n```json\n{\n  \"email\": \"user@example.com\",\n  \"password\": \"securePassword123\",\n  \"name\": \"John Doe\"\n}\n```\n\n### Response\n\n#### Success (201 Created)\n\n```json\n{\n  \"id\": \"usr_123abc\",\n  \"email\": \"user@example.com\",\n  \"name\": \"John Doe\",\n  \"createdAt\": \"2024-01-15T10:30:00Z\"\n}\n```\n\n#### Error (400 Bad Request)\n\n```json\n{\n  \"error\": \"VALIDATION_ERROR\",\n  \"message\": \"Email already exists\",\n  \"details\": {\n    \"field\": \"email\"\n  }\n}\n```\n\n### Example\n\n```bash\ncurl -X POST https://api.example.com/api/v1/users \\\n  -H \"Authorization: Bearer $TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"email\":\"user@example.com\",\"password\":\"pass123\",\"name\":\"John\"}'\n```"
+    },
+    "CHANGELOG.md": {
+      "content": "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n### Added\n- New feature X for improved performance\n\n### Changed\n- Updated dependency Y to version 2.0\n\n## [1.2.0] - 2024-01-15\n\n### Added\n- User authentication via OAuth 2.0\n- Dark mode support\n- Export functionality for reports\n\n### Changed\n- Improved error messages for API responses\n- Migrated database to PostgreSQL\n\n### Fixed\n- Memory leak in image processing module\n- Timezone handling for scheduled tasks\n\n### Security\n- Updated crypto library to patch CVE-2024-XXXX\n\n## [1.1.0] - 2024-01-01\n\n### Added\n- Initial public release\n- Basic CRUD operations\n- REST API endpoints\n\n[Unreleased]: https://github.com/user/repo/compare/v1.2.0...HEAD\n[1.2.0]: https://github.com/user/repo/compare/v1.1.0...v1.2.0\n[1.1.0]: https://github.com/user/repo/releases/tag/v1.1.0"
+    }
+  }
+}

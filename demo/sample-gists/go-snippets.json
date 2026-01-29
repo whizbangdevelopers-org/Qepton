@@ -1,0 +1,12 @@
+{
+  "description": "Go Concurrency Patterns #go #concurrency",
+  "public": true,
+  "files": {
+    "worker_pool.go": {
+      "content": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\n// WorkerPool processes jobs concurrently with a fixed number of workers\nfunc WorkerPool[T any, R any](jobs []T, numWorkers int, process func(T) R) []R {\n\tjobsCh := make(chan T, len(jobs))\n\tresultsCh := make(chan R, len(jobs))\n\n\tvar wg sync.WaitGroup\n\n\t// Start workers\n\tfor i := 0; i < numWorkers; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tfor job := range jobsCh {\n\t\t\t\tresultsCh <- process(job)\n\t\t\t}\n\t\t}()\n\t}\n\n\t// Send jobs\n\tfor _, job := range jobs {\n\t\tjobsCh <- job\n\t}\n\tclose(jobsCh)\n\n\t// Wait and collect results\n\twg.Wait()\n\tclose(resultsCh)\n\n\tresults := make([]R, 0, len(jobs))\n\tfor r := range resultsCh {\n\t\tresults = append(results, r)\n\t}\n\treturn results\n}\n\n// Usage\nfunc main() {\n\tnumbers := []int{1, 2, 3, 4, 5}\n\tsquares := WorkerPool(numbers, 3, func(n int) int {\n\t\treturn n * n\n\t})\n\tfmt.Println(squares)\n}"
+    },
+    "rate_limiter.go": {
+      "content": "package main\n\nimport (\n\t\"sync\"\n\t\"time\"\n)\n\n// RateLimiter limits operations to N per duration\ntype RateLimiter struct {\n\ttokens   int\n\tmax      int\n\tinterval time.Duration\n\tmu       sync.Mutex\n\tticker   *time.Ticker\n}\n\n// NewRateLimiter creates a rate limiter with max tokens refilled per interval\nfunc NewRateLimiter(max int, interval time.Duration) *RateLimiter {\n\trl := &RateLimiter{\n\t\ttokens:   max,\n\t\tmax:      max,\n\t\tinterval: interval,\n\t\tticker:   time.NewTicker(interval),\n\t}\n\tgo rl.refill()\n\treturn rl\n}\n\nfunc (rl *RateLimiter) refill() {\n\tfor range rl.ticker.C {\n\t\trl.mu.Lock()\n\t\trl.tokens = rl.max\n\t\trl.mu.Unlock()\n\t}\n}\n\n// Allow returns true if operation is allowed\nfunc (rl *RateLimiter) Allow() bool {\n\trl.mu.Lock()\n\tdefer rl.mu.Unlock()\n\tif rl.tokens > 0 {\n\t\trl.tokens--\n\t\treturn true\n\t}\n\treturn false\n}"
+    }
+  }
+}

@@ -277,18 +277,24 @@ export const useGistsStore = defineStore('gists', {
     async syncGists(): Promise<void> {
       const authStore = useAuthStore()
 
-      if (!authStore.isAuthenticated || !authStore.username) {
+      if (!authStore.isAuthenticated) {
         throw new Error('Not authenticated')
+      }
+
+      // Use demo username in demo mode, otherwise regular username
+      const username = authStore.isDemoMode ? authStore.demoUsername : authStore.username
+      if (!username) {
+        throw new Error('No username available')
       }
 
       this.isSyncing = true
       this.syncError = null
 
       try {
-        console.debug('[Gists] Starting sync...')
+        console.debug(`[Gists] Starting sync for ${username}${authStore.isDemoMode ? ' (demo mode)' : ''}...`)
 
-        // Fetch all gists from GitHub
-        const gists = await githubAPI.getAllGists(authStore.username)
+        // Fetch all gists from GitHub (works without auth for public gists)
+        const gists = await githubAPI.getAllGists(username)
 
         console.debug(`[Gists] Fetched ${gists.length} gists`)
 
@@ -396,6 +402,11 @@ export const useGistsStore = defineStore('gists', {
       files: Record<string, { content: string }>,
       isPublic: boolean = true
     ): Promise<Gist> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        throw new Error('Cannot create gists in demo mode')
+      }
+
       try {
         console.debug('[Gists] Creating new gist')
 
@@ -428,6 +439,11 @@ export const useGistsStore = defineStore('gists', {
       description: string,
       files: Record<string, { content: string } | null>
     ): Promise<Gist> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        throw new Error('Cannot update gists in demo mode')
+      }
+
       try {
         console.debug('[Gists] Updating gist:', gistId)
 
@@ -459,6 +475,11 @@ export const useGistsStore = defineStore('gists', {
      * Delete a gist
      */
     async deleteGist(gistId: string): Promise<void> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        throw new Error('Cannot delete gists in demo mode')
+      }
+
       try {
         console.debug('[Gists] Deleting gist:', gistId)
 
@@ -595,6 +616,13 @@ export const useGistsStore = defineStore('gists', {
      * Sync starred gists from GitHub
      */
     async syncStarredGists(): Promise<void> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        // Skip starred gists sync in demo mode (requires auth)
+        console.debug('[Gists] Skipping starred gists sync in demo mode')
+        return
+      }
+
       try {
         console.debug('[Gists] Syncing starred gists...')
 
@@ -617,6 +645,11 @@ export const useGistsStore = defineStore('gists', {
      * Star a gist
      */
     async starGist(gistId: string): Promise<void> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        throw new Error('Cannot star gists in demo mode')
+      }
+
       try {
         console.debug('[Gists] Starring gist:', gistId)
 
@@ -640,6 +673,11 @@ export const useGistsStore = defineStore('gists', {
      * Unstar a gist
      */
     async unstarGist(gistId: string): Promise<void> {
+      const authStore = useAuthStore()
+      if (authStore.isDemoMode) {
+        throw new Error('Cannot unstar gists in demo mode')
+      }
+
       try {
         console.debug('[Gists] Unstarring gist:', gistId)
 

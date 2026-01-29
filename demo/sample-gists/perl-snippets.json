@@ -1,0 +1,9 @@
+{
+  "description": "Perl Text Processing Scripts #perl #regex #scripting",
+  "public": true,
+  "files": {
+    "log_parser.pl": {
+      "content": "#!/usr/bin/env perl\nuse strict;\nuse warnings;\nuse feature 'say';\n\n# Parse Apache/Nginx access logs\n# Format: IP - - [timestamp] \"request\" status size\n\nmy $log_pattern = qr{\n    ^(\\S+)                        # IP address\n    \\s+-\\s+-\\s+\n    \\[([^\\]]+)\\]                  # Timestamp\n    \\s+\"([^\"]+)\"                  # Request\n    \\s+(\\d+)                       # Status code\n    \\s+(\\d+|-)                     # Response size\n}x;\n\nmy %stats = (\n    total => 0,\n    by_status => {},\n    by_ip => {},\n    errors => 0,\n);\n\nwhile (my $line = <DATA>) {\n    chomp $line;\n    \n    if ($line =~ $log_pattern) {\n        my ($ip, $timestamp, $request, $status, $size) = ($1, $2, $3, $4, $5);\n        \n        $stats{total}++;\n        $stats{by_status}{$status}++;\n        $stats{by_ip}{$ip}++;\n        $stats{errors}++ if $status >= 400;\n    }\n}\n\n# Print report\nsay \"=== Log Analysis Report ===\";\nsay \"Total requests: $stats{total}\";\nsay \"Errors (4xx/5xx): $stats{errors}\";\nsay \"\\nTop IPs:\";\n\nmy @top_ips = sort { $stats{by_ip}{$b} <=> $stats{by_ip}{$a} } \n              keys %{$stats{by_ip}};\n\nfor my $ip (@top_ips[0..4]) {\n    last unless defined $ip;\n    say \"  $ip: $stats{by_ip}{$ip} requests\";\n}\n\n__DATA__\n192.168.1.1 - - [01/Jan/2024:10:00:00 +0000] \"GET /index.html HTTP/1.1\" 200 1234\n192.168.1.2 - - [01/Jan/2024:10:00:01 +0000] \"GET /api/users HTTP/1.1\" 200 567\n192.168.1.1 - - [01/Jan/2024:10:00:02 +0000] \"POST /api/login HTTP/1.1\" 401 89\n192.168.1.3 - - [01/Jan/2024:10:00:03 +0000] \"GET /missing HTTP/1.1\" 404 0"
+    }
+  }
+}

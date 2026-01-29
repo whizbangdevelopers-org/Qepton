@@ -1,10 +1,12 @@
 <template>
+  <DemoBanner />
   <router-view />
 </template>
 
 <script setup lang="ts">
 import { useQuasar } from 'quasar'
 import { onMounted } from 'vue'
+import DemoBanner from 'src/components/DemoBanner.vue'
 
 const $q = useQuasar()
 

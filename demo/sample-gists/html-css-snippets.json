@@ -1,0 +1,12 @@
+{
+  "description": "HTML & CSS Snippets #html #css #frontend",
+  "public": true,
+  "files": {
+    "card-component.html": {
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Card Component</title>\n  <link rel=\"stylesheet\" href=\"card.css\">\n</head>\n<body>\n  <article class=\"card\">\n    <img src=\"https://picsum.photos/400/200\" alt=\"Card image\" class=\"card__image\">\n    <div class=\"card__content\">\n      <h2 class=\"card__title\">Card Title</h2>\n      <p class=\"card__description\">A short description of the card content goes here.</p>\n      <div class=\"card__actions\">\n        <button class=\"btn btn--primary\">Learn More</button>\n        <button class=\"btn btn--secondary\">Share</button>\n      </div>\n    </div>\n  </article>\n</body>\n</html>"
+    },
+    "card.css": {
+      "content": "/* Card Component Styles using BEM methodology */\n\n:root {\n  --color-primary: #3b82f6;\n  --color-secondary: #64748b;\n  --radius-md: 0.5rem;\n  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);\n}\n\n.card {\n  max-width: 24rem;\n  border-radius: var(--radius-md);\n  overflow: hidden;\n  box-shadow: var(--shadow-md);\n  background: white;\n}\n\n.card__image {\n  width: 100%;\n  height: auto;\n  display: block;\n}\n\n.card__content {\n  padding: 1.5rem;\n}\n\n.card__title {\n  margin: 0 0 0.5rem;\n  font-size: 1.25rem;\n  font-weight: 600;\n}\n\n.card__description {\n  color: var(--color-secondary);\n  margin: 0 0 1rem;\n  line-height: 1.5;\n}\n\n.card__actions {\n  display: flex;\n  gap: 0.5rem;\n}\n\n.btn {\n  padding: 0.5rem 1rem;\n  border: none;\n  border-radius: var(--radius-md);\n  font-weight: 500;\n  cursor: pointer;\n  transition: opacity 0.2s;\n}\n\n.btn:hover {\n  opacity: 0.9;\n}\n\n.btn--primary {\n  background: var(--color-primary);\n  color: white;\n}\n\n.btn--secondary {\n  background: #e2e8f0;\n  color: var(--color-secondary);\n}"
+    }
+  }
+}

@@ -190,6 +190,7 @@ module.exports = function (ctx) {
           icon: 'src-electron/icons/icon.icns',
           target: [
             { target: 'dmg', arch: ['x64', 'arm64'] },
+            { target: 'pkg', arch: ['x64', 'arm64'] },
             { target: '7z', arch: ['x64', 'arm64'] }
           ],
           darkModeSupport: true
@@ -199,6 +200,8 @@ module.exports = function (ctx) {
           icon: 'src-electron/icons/icon.ico',
           target: [
             { target: 'nsis', arch: ['x64', 'ia32'] },
+            { target: 'msi', arch: ['x64'] },
+            { target: 'portable', arch: ['x64'] },
             { target: '7z', arch: ['x64', 'ia32'] }
           ]
         },

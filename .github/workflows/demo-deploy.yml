@@ -1,0 +1,59 @@
+name: Demo Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'quasar.config.cjs'
+      - '.github/workflows/demo-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Qepton-Dev
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA for demo
+        env:
+          VITE_DEMO_MODE: 'true'
+          VITE_HCAPTCHA_SITEKEY: ${{ secrets.VITE_HCAPTCHA_SITEKEY }}
+          VITE_DEMO_TOKEN_P1: ${{ secrets.VITE_DEMO_TOKEN_P1 }}
+          VITE_DEMO_TOKEN_P2: ${{ secrets.VITE_DEMO_TOKEN_P2 }}
+        run: npx quasar build -m spa
+
+      - name: Prepare deployment
+        run: |
+          # Create .nojekyll
+          touch dist/spa/.nojekyll
+          # Copy README for the demo repo
+          cp demo/DEMO-README.md dist/spa/README.md
+
+      - name: Deploy to demo repo
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.DEMO_GITHUB_TOKEN }}
+          repository-name: qepton-demo/qepton-demo.github.io
+          branch: main
+          folder: dist/spa
+          clean-exclude: README.md
+          commit-message: "Deploy demo app - ${{ github.sha }}"
+
+      - name: Summary
+        run: |
+          echo "## Demo Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: https://qepton-demo.github.io" >> $GITHUB_STEP_SUMMARY

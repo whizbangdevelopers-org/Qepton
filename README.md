@@ -12,7 +12,7 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org/)
 [![Quasar](https://img.shields.io/badge/Quasar-2.x-1976D2?logo=quasar)](https://quasar.dev/)
 
-**[Try the PWA](https://whizbangdevelopers-org.github.io/Qepton/)** | **[Download Desktop App](https://github.com/whizbangdevelopers-org/Qepton/releases)**
+**[Try the PWA](https://whizbangdevelopers-org.github.io/Qepton/)** | **[Try Demo](https://qepton-demo.github.io)** | **[Download Desktop App](https://github.com/whizbangdevelopers-org/Qepton/releases)**
 
 </div>
 
@@ -199,25 +199,11 @@ Unit tests use Vitest:
 npm run test:unit
 ```
 
-## Release Verification
-
-All releases are automatically tested after deployment:
-
-| Platform      | Format         | Automated Tests           | Status |
-| ------------- | -------------- | ------------------------- | ------ |
-| Web           | PWA            | Load, assets, OAuth config| ✅ CI  |
-| Linux         | AppImage       | Launch smoke test         | ✅ CI  |
-| Linux         | deb            | Install verification      | ✅ CI  |
-| Windows       | NSIS installer | Silent install            | ✅ CI  |
-| macOS         | DMG            | Mount and verify          | ✅ CI  |
-| Linux         | rpm            | Manual (Fedora VM)        | 🔧     |
-| Linux         | Flatpak        | Manual (Fedora VM)        | 🔧     |
-| Linux         | pacman         | Manual (Arch VM)          | 🔧     |
-
-**Legend:** ✅ CI = Automated in GitHub Actions | 🔧 = Manual verification
-
-The verification workflow runs automatically after each release and PWA deployment.
-See [workflow runs](https://github.com/whizbangdevelopers/Qepton/actions/workflows/verify-deployment.yml) for latest results.
+E2E tests use Playwright (via Docker):
+```bash
+cd e2e-docker
+./scripts/run-tests.sh
+```
 
 ## Release Verification
 

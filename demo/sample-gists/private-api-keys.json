@@ -1,0 +1,9 @@
+{
+  "description": "Personal API Keys Template #secrets #private",
+  "public": false,
+  "files": {
+    "api-keys.env.example": {
+      "content": "# API Keys Template\n# Copy to .env and fill in your values\n\n# OpenAI\nOPENAI_API_KEY=sk-your-key-here\n\n# GitHub\nGITHUB_TOKEN=ghp_your-token-here\n\n# AWS\nAWS_ACCESS_KEY_ID=AKIA...\nAWS_SECRET_ACCESS_KEY=your-secret-here\nAWS_REGION=us-east-1\n\n# Database\nDATABASE_URL=postgresql://user:pass@localhost:5432/mydb\nREDIS_URL=redis://localhost:6379\n\n# Stripe\nSTRIPE_SECRET_KEY=sk_test_...\nSTRIPE_WEBHOOK_SECRET=whsec_...\n\n# SendGrid\nSENDGRID_API_KEY=SG.your-key-here"
+    }
+  }
+}

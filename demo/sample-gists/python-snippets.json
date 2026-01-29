@@ -1,0 +1,12 @@
+{
+  "description": "Python Utility Snippets #python #utilities",
+  "public": true,
+  "files": {
+    "retry_decorator.py": {
+      "content": "import time\nfrom functools import wraps\n\ndef retry(max_attempts=3, delay=1, backoff=2):\n    \"\"\"Retry decorator with exponential backoff.\n    \n    Args:\n        max_attempts: Maximum number of retry attempts\n        delay: Initial delay between retries (seconds)\n        backoff: Multiplier for delay after each retry\n    \"\"\"\n    def decorator(func):\n        @wraps(func)\n        def wrapper(*args, **kwargs):\n            attempts = 0\n            current_delay = delay\n            while attempts < max_attempts:\n                try:\n                    return func(*args, **kwargs)\n                except Exception as e:\n                    attempts += 1\n                    if attempts == max_attempts:\n                        raise e\n                    print(f\"Attempt {attempts} failed, retrying in {current_delay}s...\")\n                    time.sleep(current_delay)\n                    current_delay *= backoff\n        return wrapper\n    return decorator\n\n# Usage\n@retry(max_attempts=3, delay=1)\ndef fetch_data(url):\n    # Your code here\n    pass"
+    },
+    "timer_context.py": {
+      "content": "import time\nfrom contextlib import contextmanager\n\n@contextmanager\ndef timer(label=\"Operation\"):\n    \"\"\"Context manager to time code execution.\n    \n    Usage:\n        with timer(\"My operation\"):\n            # code to time\n    \"\"\"\n    start = time.perf_counter()\n    try:\n        yield\n    finally:\n        elapsed = time.perf_counter() - start\n        print(f\"{label} took {elapsed:.4f} seconds\")\n\n# Usage\nwith timer(\"Data processing\"):\n    # Your code here\n    time.sleep(0.5)"
+    }
+  }
+}

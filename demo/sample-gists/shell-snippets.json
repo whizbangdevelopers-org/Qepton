@@ -1,0 +1,12 @@
+{
+  "description": "Bash Shell Scripts #bash #shell #devops",
+  "public": true,
+  "files": {
+    "safe_script.sh": {
+      "content": "#!/usr/bin/env bash\n# Safe bash script template with error handling\n\nset -euo pipefail\nIFS=$'\\n\\t'\n\n# Colors for output\nRED='\\033[0;31m'\nGREEN='\\033[0;32m'\nYELLOW='\\033[1;33m'\nNC='\\033[0m' # No Color\n\n# Logging functions\nlog_info() { echo -e \"${GREEN}[INFO]${NC} $*\"; }\nlog_warn() { echo -e \"${YELLOW}[WARN]${NC} $*\" >&2; }\nlog_error() { echo -e \"${RED}[ERROR]${NC} $*\" >&2; }\n\n# Cleanup function\ncleanup() {\n    local exit_code=$?\n    log_info \"Cleaning up...\"\n    # Add cleanup commands here\n    exit $exit_code\n}\ntrap cleanup EXIT\n\n# Check required commands\nrequire_cmd() {\n    if ! command -v \"$1\" &>/dev/null; then\n        log_error \"Required command not found: $1\"\n        exit 1\n    fi\n}\n\n# Main\nmain() {\n    log_info \"Script started\"\n    require_cmd git\n    require_cmd curl\n    \n    # Your script logic here\n    log_info \"Script completed\"\n}\n\nmain \"$@\""
+    },
+    "git_helpers.sh": {
+      "content": "#!/usr/bin/env bash\n# Useful git helper functions\n\n# Delete merged branches (except main/master/develop)\ngit_clean_branches() {\n    git branch --merged | grep -vE '(^\\*|main|master|develop)' | xargs -r git branch -d\n    echo \"Cleaned merged branches\"\n}\n\n# Interactive rebase on main\ngit_rebase_main() {\n    local main_branch\n    main_branch=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)\n    git fetch origin \"$main_branch\"\n    git rebase -i \"origin/$main_branch\"\n}\n\n# Show file history with diffs\ngit_file_history() {\n    local file=\"$1\"\n    git log -p --follow -- \"$file\"\n}\n\n# Undo last commit (keep changes staged)\ngit_uncommit() {\n    git reset --soft HEAD~1\n    echo \"Undid last commit, changes are staged\"\n}"
+    }
+  }
+}

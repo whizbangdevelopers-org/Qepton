@@ -1,0 +1,12 @@
+{
+  "description": "Nix Development Shells #nix #devops #reproducible",
+  "public": true,
+  "files": {
+    "flake.nix": {
+      "content": "{\n  description = \"Development environment flake\";\n\n  inputs = {\n    nixpkgs.url = \"github:NixOS/nixpkgs/nixos-unstable\";\n    flake-utils.url = \"github:numtide/flake-utils\";\n  };\n\n  outputs = { self, nixpkgs, flake-utils }:\n    flake-utils.lib.eachDefaultSystem (system:\n      let\n        pkgs = nixpkgs.legacyPackages.${system};\n      in\n      {\n        devShells.default = pkgs.mkShell {\n          buildInputs = with pkgs; [\n            # Languages\n            nodejs_20\n            python311\n            rustc\n            cargo\n            go\n\n            # Tools\n            git\n            jq\n            ripgrep\n            fd\n\n            # Language servers\n            nodePackages.typescript-language-server\n            rust-analyzer\n            gopls\n          ];\n\n          shellHook = ''\n            echo \"Development environment loaded!\"\n            echo \"Node: $(node --version)\"\n            echo \"Python: $(python --version)\"\n            echo \"Rust: $(rustc --version)\"\n          '';\n        };\n      }\n    );\n}"
+    },
+    "shell.nix": {
+      "content": "# Legacy shell.nix for non-flake users\n{ pkgs ? import <nixpkgs> {} }:\n\npkgs.mkShell {\n  name = \"dev-environment\";\n\n  buildInputs = with pkgs; [\n    # Node.js development\n    nodejs_20\n    nodePackages.npm\n    nodePackages.pnpm\n\n    # Python development\n    (python311.withPackages (ps: with ps; [\n      pip\n      virtualenv\n      black\n      pytest\n    ]))\n\n    # Utilities\n    git\n    curl\n    jq\n    yq\n  ];\n\n  # Environment variables\n  NODE_ENV = \"development\";\n  PYTHONDONTWRITEBYTECODE = \"1\";\n\n  shellHook = ''\n    # Create .venv if it doesn't exist\n    if [ ! -d .venv ]; then\n      python -m venv .venv\n    fi\n    source .venv/bin/activate\n\n    echo \"Environment ready!\"\n  '';\n}"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "description": "Server Configuration Notes #devops #private #infra",
+  "public": false,
+  "files": {
+    "server-notes.md": {
+      "content": "# Server Configuration Notes\n\n## Production Server\n- **IP**: 10.0.1.50\n- **SSH Port**: 22\n- **User**: deploy\n- **Key**: ~/.ssh/prod_deploy_key\n\n## Database Server\n- **Host**: db.internal.example.com\n- **Port**: 5432\n- **Backup Schedule**: Daily at 2 AM UTC\n\n## Redis Cache\n- **Host**: cache.internal.example.com\n- **Port**: 6379\n- **Memory**: 4GB\n\n## Deployment Commands\n\n```bash\n# Deploy to production\nssh deploy@prod 'cd /var/www/app && git pull && npm run build && pm2 restart all'\n\n# Check logs\nssh deploy@prod 'pm2 logs --lines 100'\n\n# Restart services\nssh deploy@prod 'sudo systemctl restart nginx'\n```\n\n## Monitoring\n- Grafana: https://grafana.internal.example.com\n- Prometheus: https://prometheus.internal.example.com\n"
+    },
+    "ssh-config": {
+      "content": "# SSH Config for Project Servers\n\nHost prod\n    HostName 10.0.1.50\n    User deploy\n    IdentityFile ~/.ssh/prod_deploy_key\n    ForwardAgent yes\n\nHost staging\n    HostName 10.0.1.51\n    User deploy\n    IdentityFile ~/.ssh/staging_key\n\nHost db-tunnel\n    HostName 10.0.1.50\n    User deploy\n    LocalForward 5433 db.internal:5432\n"
+    }
+  }
+}

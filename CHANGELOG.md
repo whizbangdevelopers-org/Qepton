@@ -36,10 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Snap package via separate workflow (uploads to GitHub Releases)
 - Snap Store publishing support (requires SNAPCRAFT_STORE_CREDENTIALS secret)
 
-## [1.0.13] - 2026-01-15
+## [1.0.13] - 2026-01-29
 
 ### Added
-- Deb package for Debian/Ubuntu users
+- macOS pkg installer format for enterprise/MDM deployment
+- Windows MSI installer for Group Policy deployment
+- Windows portable executable (runs without installation)
 
 ## [1.0.12] - 2026-01-15
 

@@ -1,0 +1,15 @@
+{
+  "description": "AI Prompt Templates #prompts #ai #llm",
+  "public": true,
+  "files": {
+    "code-review-prompt.md": {
+      "content": "# Code Review Prompt\n\nReview the following code for:\n\n1. **Bugs & Logic Errors**: Identify any potential bugs or incorrect logic\n2. **Security Issues**: Check for common vulnerabilities (injection, XSS, etc.)\n3. **Performance**: Suggest optimizations if applicable\n4. **Best Practices**: Note any deviations from language/framework conventions\n5. **Readability**: Suggest improvements for clarity\n\nProvide your feedback in this format:\n\n```\n## Summary\n[Brief overall assessment]\n\n## Issues Found\n### Critical\n- [Issue with line number and fix]\n\n### Suggestions\n- [Non-critical improvements]\n\n## What's Good\n- [Positive aspects of the code]\n```\n\n---\n\n**Code to review:**\n\n```[language]\n[paste code here]\n```"
+    },
+    "explain-code-prompt.md": {
+      "content": "# Code Explanation Prompt\n\nExplain the following code in detail:\n\n1. **Purpose**: What does this code do overall?\n2. **Step-by-step**: Walk through the logic line by line\n3. **Key Concepts**: Explain any patterns, algorithms, or techniques used\n4. **Dependencies**: What external libraries or APIs does it use?\n5. **Edge Cases**: What edge cases does it handle (or miss)?\n\nFormat your explanation for a [beginner/intermediate/advanced] developer.\n\n---\n\n```[language]\n[paste code here]\n```"
+    },
+    "refactor-prompt.md": {
+      "content": "# Refactoring Prompt\n\nRefactor the following code with these goals:\n\n**Primary Goals:**\n- [ ] Improve readability\n- [ ] Reduce complexity\n- [ ] Add type safety\n- [ ] Optimize performance\n- [ ] Follow [framework/language] best practices\n\n**Constraints:**\n- Maintain the same public API/interface\n- Keep backward compatibility\n- Use only standard library (no new dependencies)\n\n**Please provide:**\n1. The refactored code\n2. A brief explanation of each change\n3. Any trade-offs to consider\n\n---\n\n**Original code:**\n\n```[language]\n[paste code here]\n```"
+    }
+  }
+}

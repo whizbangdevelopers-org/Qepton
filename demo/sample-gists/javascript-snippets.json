@@ -1,0 +1,12 @@
+{
+  "description": "JavaScript Utility Snippets #javascript #utilities",
+  "public": true,
+  "files": {
+    "debounce.js": {
+      "content": "/**\n * Debounce function - delays execution until after wait ms\n * @param {Function} func - Function to debounce\n * @param {number} wait - Milliseconds to wait\n * @returns {Function} Debounced function\n */\nfunction debounce(func, wait) {\n  let timeout;\n  return function executedFunction(...args) {\n    const later = () => {\n      clearTimeout(timeout);\n      func(...args);\n    };\n    clearTimeout(timeout);\n    timeout = setTimeout(later, wait);\n  };\n}\n\n// Usage\nconst debouncedSearch = debounce((query) => {\n  console.log('Searching for:', query);\n}, 300);"
+    },
+    "throttle.js": {
+      "content": "/**\n * Throttle function - limits execution to once per wait ms\n * @param {Function} func - Function to throttle\n * @param {number} wait - Milliseconds between executions\n * @returns {Function} Throttled function\n */\nfunction throttle(func, wait) {\n  let lastTime = 0;\n  return function executedFunction(...args) {\n    const now = Date.now();\n    if (now - lastTime >= wait) {\n      lastTime = now;\n      func(...args);\n    }\n  };\n}\n\n// Usage\nconst throttledScroll = throttle(() => {\n  console.log('Scroll event handled');\n}, 100);"
+    }
+  }
+}

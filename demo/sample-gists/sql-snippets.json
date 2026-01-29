@@ -1,0 +1,12 @@
+{
+  "description": "SQL Query Patterns #sql #database",
+  "public": true,
+  "files": {
+    "common_queries.sql": {
+      "content": "-- Common SQL query patterns\n\n-- Pagination with total count\nSELECT \n    *,\n    COUNT(*) OVER() AS total_count\nFROM users\nWHERE active = true\nORDER BY created_at DESC\nLIMIT 20 OFFSET 0;\n\n-- Running total / cumulative sum\nSELECT \n    date,\n    amount,\n    SUM(amount) OVER (ORDER BY date) AS running_total\nFROM transactions;\n\n-- Find duplicates\nSELECT email, COUNT(*) as count\nFROM users\nGROUP BY email\nHAVING COUNT(*) > 1;\n\n-- Rank within groups\nSELECT \n    department,\n    name,\n    salary,\n    RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank\nFROM employees;\n\n-- Gap detection (find missing IDs)\nSELECT id + 1 AS gap_start\nFROM orders o\nWHERE NOT EXISTS (\n    SELECT 1 FROM orders WHERE id = o.id + 1\n)\nAND id < (SELECT MAX(id) FROM orders);"
+    },
+    "useful_ctes.sql": {
+      "content": "-- Recursive CTE: Organization hierarchy\nWITH RECURSIVE org_tree AS (\n    -- Base case: top-level employees\n    SELECT \n        id,\n        name,\n        manager_id,\n        1 AS level,\n        CAST(name AS VARCHAR(1000)) AS path\n    FROM employees\n    WHERE manager_id IS NULL\n    \n    UNION ALL\n    \n    -- Recursive case: employees under managers\n    SELECT \n        e.id,\n        e.name,\n        e.manager_id,\n        ot.level + 1,\n        CONCAT(ot.path, ' > ', e.name)\n    FROM employees e\n    JOIN org_tree ot ON e.manager_id = ot.id\n)\nSELECT * FROM org_tree ORDER BY path;\n\n-- Date series generation (PostgreSQL)\nWITH date_series AS (\n    SELECT generate_series(\n        '2024-01-01'::date,\n        '2024-12-31'::date,\n        '1 day'::interval\n    )::date AS date\n)\nSELECT \n    ds.date,\n    COALESCE(COUNT(o.id), 0) AS order_count\nFROM date_series ds\nLEFT JOIN orders o ON DATE(o.created_at) = ds.date\nGROUP BY ds.date\nORDER BY ds.date;"
+    }
+  }
+}
