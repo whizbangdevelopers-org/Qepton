@@ -190,7 +190,6 @@ module.exports = function (ctx) {
           icon: 'src-electron/icons/icon.icns',
           target: [
             { target: 'dmg', arch: ['x64', 'arm64'] },
-            { target: 'pkg', arch: ['x64', 'arm64'] },
             { target: '7z', arch: ['x64', 'arm64'] }
           ],
           darkModeSupport: true

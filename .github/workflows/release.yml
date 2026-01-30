@@ -5,9 +5,6 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build (${{ matrix.os }})
@@ -136,10 +133,68 @@ jobs:
             dist/electron/Packaged/latest.yml
           retention-days: 5
 
+  # ==========================================================================
+  # Pacman Package Build (Arch Linux)
+  # Uncomment this job to build pacman packages for Arch Linux
+  # ==========================================================================
+  # build-pacman:
+  #   name: Build Pacman Package
+  #   runs-on: ubuntu-latest
+  #   container: archlinux:latest
+  #   needs: build
+  #
+  #   steps:
+  #     - name: Install dependencies
+  #       run: |
+  #         pacman -Syu --noconfirm
+  #         pacman -S --noconfirm base-devel git wget
+  #
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Download Linux build
+  #       uses: actions/download-artifact@v7
+  #       with:
+  #         name: linux-builds
+  #         path: artifacts
+  #
+  #     - name: Extract version
+  #       id: version
+  #       run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+  #
+  #     - name: Prepare source
+  #       run: |
+  #         cd pacman
+  #         # Update PKGBUILD version
+  #         sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
+  #         # Extract the Linux tarball for packaging
+  #         mkdir -p src
+  #         tar -xzf ../artifacts/*.tar.gz -C src/ 2>/dev/null || \
+  #           tar -xf ../artifacts/*.AppImage --appimage-extract -C src/ 2>/dev/null || \
+  #           echo "Using unpacked format"
+  #
+  #     - name: Build package
+  #       run: |
+  #         cd pacman
+  #         # Create a non-root user for makepkg (required by Arch)
+  #         useradd -m builder
+  #         chown -R builder:builder .
+  #         su builder -c "makepkg -s --noconfirm --skipinteg"
+  #
+  #     - name: Upload pacman package
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: pacman-package
+  #         path: pacman/*.pkg.tar.zst
+  #         retention-days: 5
+
   release:
     name: Create Release
     needs: build
+    # When enabling pacman build, change to: needs: [build, build-pacman]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -237,6 +292,8 @@ jobs:
           git diff --staged --quiet || git commit -m "Update CHANGELOG.md for v${{ steps.release_notes.outputs.version }}"
           git push origin HEAD:main || echo "No changes to push"
 
+      # electron-builder creates the release and uploads assets during the build job
+      # This step uploads any missing artifacts but keeps release as DRAFT for manual testing
       - name: Finalize Draft Release
         run: |
           TAG="${{ github.ref_name }}"
@@ -253,6 +310,8 @@ jobs:
           done
 
           # Keep release as DRAFT for post-release testing
+          # To publish: go to GitHub Releases and click "Publish release"
+          # Or run: gh release edit $TAG --draft=false
           IS_DRAFT=$(gh release view "$TAG" --json isDraft -q '.isDraft' 2>/dev/null || echo "true")
           if [ "$IS_DRAFT" = "true" ]; then
             echo "Release remains as DRAFT for manual testing"
@@ -261,8 +320,9 @@ jobs:
             echo "Release is already published (may have been manually published)"
           fi
 
-          # Upload any artifacts that electron-builder might have missed
+          # Upload any artifacts that electron-builder might have missed (e.g., from failed uploads)
           echo "Uploading any missing artifacts..."
+          # When enabling pacman build, add pacman-package to this list
           for dir in linux-builds mac-builds win-builds; do
             if [ -d "artifacts/$dir" ]; then
               for file in artifacts/$dir/*; do
@@ -291,6 +351,8 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     environment: production-release
+    permissions:
+      contents: write
 
     steps:
       - name: Publish release
