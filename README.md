@@ -18,7 +18,7 @@
 
 ---
 
-Qepton is a powerful code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor)(Future).
+Qepton is a powerful AI Prompt and code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor)(Future).
 
 ## Features
 
@@ -209,6 +209,7 @@ cd e2e-docker
 
 We test release artifacts on real hardware and VMs before publishing. This matrix shows current verification status.
 
+<!-- VERIFICATION-TABLE-START -->
 | Format        | Platform       | Test Environment    | Status | Last Verified |
 | ------------- | -------------- | ------------------- | ------ | ------------- |
 | NSIS (.exe)   | Windows x64    | Win10 Laptop        | ✅     | v1.0.12       |
@@ -224,10 +225,11 @@ We test release artifacts on real hardware and VMs before publishing. This matri
 | PWA           | Web            | GitHub Pages        | ✅     | v1.0.12       |
 | iOS           | Mobile         | —                   | 🔮     | Future        |
 | Android       | Mobile         | —                   | 🔮     | Future        |
+<!-- VERIFICATION-TABLE-END -->
 
 **Legend:** ✅ Verified | ⏳ Pending | ⏸️ Skipped | 🔮 Future
 
-See [Release Verification Issues](https://github.com/whizbangdevelopers-org/Qepton-Dev/issues?q=label%3Averification) for detailed test results per release.
+See [Release Verification Issues](https://github.com/whizbangdevelopers-org/Qepton-Dev/issues?q=label%3Arelease-verify) for detailed test results per release.
 
 ## Contributing
 
