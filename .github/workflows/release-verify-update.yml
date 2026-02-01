@@ -1,0 +1,288 @@
+name: Update Verification Status
+
+on:
+  issues:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+
+jobs:
+  update-readme:
+    # Only run for verification sub-issues (not parent)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.issue.labels.*.name, 'release-verify') &&
+       !contains(github.event.issue.labels.*.name, 'release-verify-parent'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine issue details
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ISSUE_NUM="${{ inputs.issue_number }}"
+          else
+            ISSUE_NUM="${{ github.event.issue.number }}"
+          fi
+
+          # Get issue details
+          ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json title,labels,body)
+          TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+          LABELS=$(echo "$ISSUE_JSON" | jq -r '.labels[].name' | tr '\n' ',' | sed 's/,$//')
+
+          # Extract version from title: "[Verify v1.0.13] Windows..."
+          VERSION=$(echo "$TITLE" | grep -oP '\[Verify \K[^\]]+' || echo "")
+
+          # Determine platform from label
+          PLATFORM=""
+          if echo "$LABELS" | grep -q "release-verify-windows"; then
+            PLATFORM="windows"
+          elif echo "$LABELS" | grep -q "release-verify-macos"; then
+            PLATFORM="macos"
+          elif echo "$LABELS" | grep -q "release-verify-ubuntu"; then
+            PLATFORM="ubuntu"
+          elif echo "$LABELS" | grep -q "release-verify-fedora"; then
+            PLATFORM="fedora"
+          elif echo "$LABELS" | grep -q "release-verify-arch"; then
+            PLATFORM="arch"
+          elif echo "$LABELS" | grep -q "release-verify-pwa"; then
+            PLATFORM="pwa"
+          fi
+
+          echo "issue_num=$ISSUE_NUM" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "platform=$PLATFORM" >> $GITHUB_OUTPUT
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+          echo "Processing issue #$ISSUE_NUM: platform=$PLATFORM, version=$VERSION"
+
+      - name: Skip if not a verification sub-issue
+        if: steps.issue.outputs.platform == '' || steps.issue.outputs.version == ''
+        run: |
+          echo "Not a valid verification sub-issue (platform='${{ steps.issue.outputs.platform }}', version='${{ steps.issue.outputs.version }}'), skipping"
+          echo "Labels: ${{ steps.issue.outputs.labels }}"
+
+      - name: Update README verification table
+        if: steps.issue.outputs.platform != '' && steps.issue.outputs.version != ''
+        env:
+          VERSION: ${{ steps.issue.outputs.version }}
+          PLATFORM: ${{ steps.issue.outputs.platform }}
+        run: |
+          # Define which format patterns belong to each platform
+          # These patterns match the Format column in the README table
+          declare -A PLATFORM_FORMATS
+          PLATFORM_FORMATS[windows]="NSIS|Portable"
+          PLATFORM_FORMATS[macos]="DMG.*arm64"
+          PLATFORM_FORMATS[ubuntu]="AppImage|^deb|^snap"
+          PLATFORM_FORMATS[fedora]="^rpm|Flatpak"
+          PLATFORM_FORMATS[arch]="pacman"
+          PLATFORM_FORMATS[pwa]="PWA"
+
+          FORMATS="${PLATFORM_FORMATS[$PLATFORM]}"
+
+          if [ -z "$FORMATS" ]; then
+            echo "Unknown platform: $PLATFORM"
+            exit 1
+          fi
+
+          echo "Updating formats matching: $FORMATS"
+          echo "Setting version to: $VERSION"
+
+          # Create a Python script for reliable table updates
+          cat > /tmp/update_table.py << 'PYEOF'
+          import sys
+          import re
+
+          version = sys.argv[1]
+          patterns = sys.argv[2].split('|')
+
+          with open('README.md', 'r') as f:
+              content = f.read()
+
+          # Find the verification table section
+          start_marker = '<!-- VERIFICATION-TABLE-START -->'
+          end_marker = '<!-- VERIFICATION-TABLE-END -->'
+
+          start_idx = content.find(start_marker)
+          end_idx = content.find(end_marker)
+
+          if start_idx == -1 or end_idx == -1:
+              print("ERROR: Could not find verification table markers")
+              sys.exit(1)
+
+          before = content[:start_idx + len(start_marker)]
+          table = content[start_idx + len(start_marker):end_idx]
+          after = content[end_idx:]
+
+          # Process each line in the table
+          lines = table.split('\n')
+          updated_lines = []
+          updates_made = 0
+
+          for line in lines:
+              if not line.startswith('|'):
+                  updated_lines.append(line)
+                  continue
+
+              # Check if this line matches any of our patterns
+              matched = False
+              for pattern in patterns:
+                  if re.search(pattern, line, re.IGNORECASE):
+                      matched = True
+                      break
+
+              if matched and '---' not in line:  # Skip header separator
+                  # Parse the table row: | Format | Platform | Test Environment | Status | Last Verified |
+                  cols = line.split('|')
+                  if len(cols) >= 6:
+                      # Update Status (col 4, index 4) and Last Verified (col 5, index 5)
+                      # Preserve spacing by measuring original column width
+                      old_status = cols[4]
+                      old_verified = cols[5]
+
+                      # Replace status emoji with checkmark, preserve spacing
+                      new_status = re.sub(r'[⏳⏸️]', '✅', old_status)
+                      if new_status == old_status and '✅' not in old_status:
+                          # No emoji found, just set it
+                          new_status = ' ✅     '
+
+                      # Update Last Verified with version, try to preserve column width
+                      target_width = len(old_verified)
+                      new_verified = f' {version}'
+                      # Pad to match original width
+                      if len(new_verified) < target_width:
+                          new_verified = new_verified + ' ' * (target_width - len(new_verified))
+
+                      cols[4] = new_status
+                      cols[5] = new_verified
+                      line = '|'.join(cols)
+                      updates_made += 1
+                      print(f"Updated: {cols[1].strip()}")
+
+              updated_lines.append(line)
+
+          if updates_made == 0:
+              print("WARNING: No rows were updated")
+          else:
+              print(f"Updated {updates_made} row(s)")
+
+          # Reconstruct the file
+          new_content = before + '\n'.join(updated_lines) + after
+
+          with open('README.md', 'w') as f:
+              f.write(new_content)
+          PYEOF
+
+          python3 /tmp/update_table.py "$VERSION" "$FORMATS"
+
+      - name: Check for changes
+        if: steps.issue.outputs.platform != '' && steps.issue.outputs.version != ''
+        id: changes
+        run: |
+          if git diff --quiet README.md; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes to README.md"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in README.md"
+            git diff README.md
+          fi
+
+      - name: Commit README update
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          VERSION: ${{ steps.issue.outputs.version }}
+          PLATFORM: ${{ steps.issue.outputs.platform }}
+          ISSUE_NUM: ${{ steps.issue.outputs.issue_num }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add README.md
+          git commit -m "docs: update verification status for $PLATFORM ($VERSION)
+
+          Verified via issue #$ISSUE_NUM"
+
+          # Retry push with rebase to handle concurrent updates
+          for i in 1 2 3; do
+            if git push; then
+              echo "Push succeeded"
+              break
+            fi
+            echo "Push failed, attempt $i - rebasing and retrying..."
+            git pull --rebase origin main
+            # Re-run the Python script to update README after rebase
+            python3 /tmp/update_table.py "$VERSION" "$FORMATS"
+            git add README.md
+            git diff --staged --quiet || git commit --amend --no-edit
+          done
+
+      - name: Check if all sub-issues closed
+        if: steps.issue.outputs.platform != '' && steps.issue.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.issue.outputs.version }}
+        run: |
+          # Find parent issue for this version
+          PARENT_JSON=$(gh issue list --label release-verify-parent --search "[Release $VERSION]" --json number,state --jq '.[0] // empty')
+
+          if [ -z "$PARENT_JSON" ]; then
+            echo "No parent issue found for $VERSION"
+            exit 0
+          fi
+
+          PARENT_NUM=$(echo "$PARENT_JSON" | jq -r '.number')
+          PARENT_STATE=$(echo "$PARENT_JSON" | jq -r '.state')
+
+          echo "Parent issue: #$PARENT_NUM (state: $PARENT_STATE)"
+
+          if [ "$PARENT_STATE" = "CLOSED" ]; then
+            echo "Parent issue already closed"
+            exit 0
+          fi
+
+          # Check if all sub-issues are closed
+          SUB_LABELS=("release-verify-windows" "release-verify-macos" "release-verify-ubuntu" "release-verify-fedora" "release-verify-arch" "release-verify-pwa")
+          ALL_CLOSED=true
+
+          for label in "${SUB_LABELS[@]}"; do
+            OPEN_COUNT=$(gh issue list --label "$label" --search "[Verify $VERSION]" --state open --json number --jq 'length')
+            if [ "$OPEN_COUNT" -gt 0 ]; then
+              ALL_CLOSED=false
+              echo "Still open: $label ($OPEN_COUNT issue(s))"
+            else
+              echo "Closed: $label"
+            fi
+          done
+
+          if [ "$ALL_CLOSED" = true ]; then
+            echo "All sub-issues closed! Closing parent #$PARENT_NUM"
+            # Close without comment (GITHUB_TOKEN has limited permissions for comments)
+            gh issue close "$PARENT_NUM" || echo "Note: Parent may already be closed"
+          else
+            echo "Some sub-issues still open, parent remains open"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Verification Status Update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue:** #${{ steps.issue.outputs.issue_num }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.issue.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Platform:** ${{ steps.issue.outputs.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.changes.outputs.has_changes }}" = "true" ]; then
+            echo ":white_check_mark: README verification table updated" >> $GITHUB_STEP_SUMMARY
+          else
+            echo ":information_source: No changes to README (may already be up to date)" >> $GITHUB_STEP_SUMMARY
+          fi
