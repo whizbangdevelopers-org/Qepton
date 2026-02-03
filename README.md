@@ -18,7 +18,7 @@
 
 ---
 
-Qepton is a powerful code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor)(Future).
+Qepton is a powerful AI Prompt and code snippet manager that connects to multiple git-based snippet services. Built with Vue 3 and Quasar Framework, it runs as a desktop app (Electron), web app (PWA), or mobile app (Capacitor)(Future).
 
 ## Features
 
@@ -94,6 +94,50 @@ Pre-built binaries are available in the [Releases](https://github.com/wriver4/qe
 
 **Windows:**
 - Run the `.exe` installer or extract the portable `.7z` archive
+
+### Nix / NixOS
+
+Qepton is available via our [NUR packages repository](https://github.com/whizbangdevelopers-org/nur-packages).
+
+**Quick Install (Flakes):**
+```bash
+# Try it out
+nix run github:whizbangdevelopers-org/nur-packages#qepton
+
+# Or build it
+nix build github:whizbangdevelopers-org/nur-packages#qepton
+```
+
+**NixOS Configuration (Flakes):**
+```nix
+{
+  inputs.whizbang-nur.url = "github:whizbangdevelopers-org/nur-packages";
+
+  outputs = { self, nixpkgs, whizbang-nur }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            whizbang-nur.packages.${pkgs.system}.qepton
+          ];
+        })
+      ];
+    };
+  };
+}
+```
+
+**With NUR (once registered):**
+```nix
+{ pkgs, ... }:
+let
+  nur = import (builtins.fetchTarball "https://github.com/nix-community/NUR/archive/master.tar.gz") {
+    inherit pkgs;
+  };
+in {
+  environment.systemPackages = [ nur.repos.whizbangdevelopers.qepton ];
+}
+```
 
 ### PWA (Progressive Web App)
 
@@ -209,6 +253,7 @@ cd e2e-docker
 
 We test release artifacts on real hardware and VMs before publishing. This matrix shows current verification status.
 
+<!-- VERIFICATION-TABLE-START -->
 | Format        | Platform       | Test Environment    | Status | Last Verified |
 | ------------- | -------------- | ------------------- | ------ | ------------- |
 | NSIS (.exe)   | Windows x64    | Win10 Laptop        | ✅     | v1.0.12       |
@@ -221,13 +266,15 @@ We test release artifacts on real hardware and VMs before publishing. This matri
 | rpm           | Fedora         | Fedora VM (KVM)     | ⏳     | —             |
 | Flatpak       | Linux          | Fedora VM (KVM)     | ⏳     | —             |
 | pacman        | Arch Linux     | Arch VM (KVM)       | ⏳     | —             |
+| Nix/NUR       | NixOS/Linux    | NixOS Laptop        | ✅     | v1.0.12       |
 | PWA           | Web            | GitHub Pages        | ✅     | v1.0.12       |
 | iOS           | Mobile         | —                   | 🔮     | Future        |
 | Android       | Mobile         | —                   | 🔮     | Future        |
+<!-- VERIFICATION-TABLE-END -->
 
 **Legend:** ✅ Verified | ⏳ Pending | ⏸️ Skipped | 🔮 Future
 
-See [Release Verification Issues](https://github.com/whizbangdevelopers-org/Qepton-Dev/issues?q=label%3Averification) for detailed test results per release.
+See [Release Verification Issues](https://github.com/whizbangdevelopers-org/Qepton-Dev/issues?q=label%3Arelease-verify) for detailed test results per release.
 
 ## Contributing
 

@@ -38,6 +38,19 @@
           data-test="login-button"
         />
 
+        <!-- Import from gh CLI (Electron only) -->
+        <q-btn
+          v-if="isElectron"
+          color="secondary"
+          label="Import from gh CLI"
+          icon="mdi-github"
+          @click="importFromGhCli"
+          :loading="isImporting"
+          class="full-width q-mt-sm"
+          outline
+          data-test="gh-import-button"
+        />
+
         <div class="text-center q-mt-md">
           <a
             href="https://github.com/settings/tokens/new?scopes=gist&description=Qepton"
@@ -60,13 +73,30 @@
       <q-card-section class="text-center text-caption text-grey-7">
         <p>Need help?</p>
         <p>Token must have <strong>gist</strong> scope to read and write gists</p>
+
+        <q-expansion-item
+          dense
+          dense-toggle
+          label="NixOS / CLI users"
+          header-class="text-caption text-grey-6"
+          class="q-mt-sm"
+        >
+          <div class="q-pa-sm text-left">
+            <p>If you use <code>gh</code> CLI with keyring-based auth:</p>
+            <code class="text-primary">gh auth token | wl-copy</code>
+            <p class="q-mt-xs">Then paste the token above.</p>
+            <p v-if="isElectron" class="text-grey-6">
+              Or click "Import from gh CLI" to auto-import.
+            </p>
+          </div>
+        </q-expansion-item>
       </q-card-section>
     </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'src/stores/auth'
@@ -84,7 +114,11 @@ useSimpleMeta('Login', 'Login to access your GitHub Gists')
 
 const token = ref('')
 const isLoading = ref(false)
+const isImporting = ref(false)
 const error = ref('')
+
+// Check if running in Electron
+const isElectron = computed(() => !!window.electronAPI)
 
 async function loginWithToken() {
   if (!token.value.trim()) {
@@ -123,6 +157,42 @@ async function loginWithToken() {
     })
   } finally {
     isLoading.value = false
+  }
+}
+
+async function importFromGhCli() {
+  if (!window.electronAPI) return
+
+  isImporting.value = true
+  error.value = ''
+
+  try {
+    const result = await window.electronAPI.getGhToken()
+
+    if (result.success && result.token) {
+      token.value = result.token
+      $q.notify({
+        type: 'positive',
+        message: 'Token imported from gh CLI',
+        icon: 'check_circle'
+      })
+    } else {
+      error.value = result.error || 'Could not retrieve token from gh CLI'
+      $q.notify({
+        type: 'warning',
+        message: 'gh CLI token not found. Is gh installed and authenticated?',
+        icon: 'warning'
+      })
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to import token'
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to import from gh CLI',
+      icon: 'error'
+    })
+  } finally {
+    isImporting.value = false
   }
 }
 </script>
