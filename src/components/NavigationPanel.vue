@@ -44,6 +44,25 @@
         </q-item-section>
       </q-item>
 
+      <!-- Pinned Gists -->
+      <q-item
+        v-if="gistsStore.pinnedCount > 0"
+        clickable
+        :active="gistsStore.activeTag === 'Pinned'"
+        @click="selectTag('Pinned')"
+        class="tag-item"
+      >
+        <q-item-section avatar>
+          <q-icon name="push_pin" color="deep-purple" />
+        </q-item-section>
+        <q-item-section>
+          <q-item-label>Pinned</q-item-label>
+        </q-item-section>
+        <q-item-section side>
+          <q-badge color="deep-purple">{{ gistsStore.pinnedCount }}</q-badge>
+        </q-item-section>
+      </q-item>
+
       <!-- Recent Gists -->
       <q-item
         v-if="uiStore.navDrawers.recentsVisible && gistsStore.recentCount > 0"
