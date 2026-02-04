@@ -9,6 +9,7 @@ node_modules/
 
 # Quasar build outputs
 .quasar
+dist/
 
 # Cordova
 /src-cordova/node_modules
@@ -51,6 +52,7 @@ lerna-debug.log*
 # Playwright outputs
 playwright-report/
 test-results/
+testing/e2e-docker/output/
 
 # Temporary files
 tmp/
