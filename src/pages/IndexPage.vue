@@ -649,6 +649,15 @@ watch(searchQuery, query => {
   searchStore.setQuery(query)
 })
 
+// Clear search when changing tags in navigation panel
+watch(
+  () => gistsStore.activeTag,
+  () => {
+    searchQuery.value = ''
+    searchStore.clearSearch()
+  }
+)
+
 const hasGists = computed(() => gistsStore.totalGists > 0)
 
 const activeTagName = computed(() => {

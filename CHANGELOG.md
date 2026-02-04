@@ -5,6 +5,14 @@ All notable changes to Qepton will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2026-02-04
+
+### Fixed
+- Search not clearing when selecting navigation items (All Gists, Starred, Recent, Pinned, Languages, Tags)
+- Login redirect race condition - await router.push for proper navigation
+- Package-lock.json sync issue causing CI failures
+- Add sass as explicit dev dependency for Vite compatibility
+
 ## [1.0.19] - 2026-02-04
 
 ### Fixed
