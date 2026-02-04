@@ -5,30 +5,11 @@ All notable changes to Qepton will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.19] - 2026-01-15
+## [1.0.15] - 2026-02-04
 
 ### Fixed
-- AppImage desktop icon not showing (explicit icon path)
-
-## [1.0.18] - 2026-01-15
-
-### Changed
-- Add auto-update CHANGELOG from commits on release
-
-## [1.0.17] - 2026-01-15
-
-### Fixed
-- Gist list pane overlapping sidebar (z-index issue)
-
-## [1.0.16] - 2026-01-15
-
-### Fixed
-- Flatpak workflow path to built app
-
-## [1.0.15] - 2026-01-15
-
-### Added
-- Flatpak package via separate workflow (uploads to GitHub Releases)
+- Sync workflow excluding dev-only files from free repo
+- Removed orphaned dev workflows from free repo (sync-to-free, dependabot-labeler, dependabot-tracker)
 
 ## [1.0.14] - 2026-02-03
 
