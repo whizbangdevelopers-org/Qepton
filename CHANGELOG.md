@@ -5,6 +5,8 @@ All notable changes to Qepton will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.20] - 2026-02-04
 
 ### Fixed
@@ -13,20 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package-lock.json sync issue causing CI failures
 - Add sass as explicit dev dependency for Vite compatibility
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.19] - 2026-02-04
 
 ### Fixed
 - Release-to-free git config and no-changes handling
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.18] - 2026-02-04
 
 ### Fixed
 - Add checkout step to Publish Release job
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.17] - 2026-02-04
 
 ### Fixed
 - Publish Release job timing issue in release workflow
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.16] - 2026-02-04
 
@@ -36,11 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - PR_MERGED context initialization in sync workflow
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.15] - 2026-02-04
 
 ### Fixed
 - Sync workflow excluding dev-only files from free repo
 - Removed orphaned dev workflows from free repo (sync-to-free, dependabot-labeler, dependabot-tracker)
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.14] - 2026-02-03
 
@@ -65,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UpdateInfo type mismatch between electron preload and store
 - Critical npm audit vulnerability
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.13] - 2026-01-29
 
 ### Added
@@ -72,15 +88,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows MSI installer for Group Policy deployment
 - Windows portable executable (runs without installation)
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.12] - 2026-01-15
 
 ### Changed
 - Revert to AppImage-only for Linux (Snap Store publishing issues)
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.11] - 2026-01-15
 
 ### Fixed
 - Attempted to disable Snap Store auto-publishing (unsuccessful)
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.10] - 2026-01-15
 
@@ -94,11 +116,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - PWA deployment configuration for GitHub Pages
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.9] - 2026-01-14
 
 ### Fixed
 - Logo imports for production Electron builds
 - Electron detection for API base URL selection
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.8] - 2026-01-14
 
@@ -108,25 +134,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - APP_URL fallback for production builds
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.7] - 2026-01-14
 
 ### Fixed
 - Preload path fallback for production builds
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.6] - 2026-01-14
 
 ### Fixed
 - __dirname compatibility for ESM modules in Electron
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.5] - 2026-01-14
 
 ### Fixed
 - electron-updater import for ESM compatibility
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.4] - 2026-01-13
 
 ### Changed
 - Simplified Linux builds to AppImage only (removed Snap temporarily)
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.3] - 2026-01-13
 
@@ -136,10 +172,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Auto-publish releases instead of drafts
 
+## [1.0.21] - 2026-02-04
+
 ## [1.0.2] - 2026-01-13
 
 ### Fixed
 - Snap build configuration with snapcraft installation
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.1] - 2026-01-13
 
@@ -147,6 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub releases publishing to correct repository
 - Package.json missing entries
 - Package-lock.json regeneration
+
+## [1.0.21] - 2026-02-04
 
 ## [1.0.0] - 2026-01-12
 
