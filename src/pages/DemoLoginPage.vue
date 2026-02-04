@@ -92,14 +92,12 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'src/stores/auth'
-import { useGistsStore } from 'src/stores/gists'
 import { useSimpleMeta } from 'src/composables/useMeta'
 import logoUrl from 'src/assets/images/logos/qepton-wordmark-dark.svg'
 
 const router = useRouter()
 const $q = useQuasar()
 const authStore = useAuthStore()
-const gistsStore = useGistsStore()
 
 useSimpleMeta('Demo', 'Try Qepton without signing up')
 
@@ -209,13 +207,9 @@ async function enterDemo() {
       caption: 'Browse sample snippets'
     })
 
-    // Sync gists in background
-    gistsStore.syncGists().catch(err => {
-      console.error('Background sync failed:', err)
-    })
-
-    // Redirect to home
-    router.push('/')
+    // Redirect to home first, then sync gists
+    // (IndexPage.onMounted will handle the sync)
+    await router.push('/')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to enter demo mode'
 

@@ -100,14 +100,12 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'src/stores/auth'
-import { useGistsStore } from 'src/stores/gists'
 import { useSimpleMeta } from 'src/composables/useMeta'
 import logoUrl from 'src/assets/images/logos/qepton-wordmark-dark.svg'
 
 const router = useRouter()
 const $q = useQuasar()
 const authStore = useAuthStore()
-const gistsStore = useGistsStore()
 
 // Set page title
 useSimpleMeta('Login', 'Login to access your GitHub Gists')
@@ -140,13 +138,9 @@ async function loginWithToken() {
       icon: 'check_circle'
     })
 
-    // Sync gists and starred gists in background
-    Promise.all([gistsStore.syncGists(), gistsStore.syncStarredGists()]).catch(err => {
-      console.error('Background sync failed:', err)
-    })
-
-    // Redirect to home
-    router.push('/')
+    // Redirect to home first, then sync gists
+    // (IndexPage.onMounted will handle the sync)
+    await router.push('/')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Invalid GitHub token'
 
