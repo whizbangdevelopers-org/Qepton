@@ -137,7 +137,12 @@ const features = [
   {
     icon: 'star',
     title: 'Starred Gists',
-    description: 'Access your starred gists from GitHub'
+    description: 'Bookmark gists on GitHub (synced across devices)'
+  },
+  {
+    icon: 'push_pin',
+    title: 'Pinned Gists',
+    description: 'Quick access to frequently used gists (local only)'
   },
   {
     icon: 'history',
@@ -151,7 +156,7 @@ const tips = [
   'Pin frequently used tags for quick access',
   'Double-click a file to expand/collapse its content',
   'Use immersive mode for distraction-free viewing',
-  'Star important gists on GitHub for quick access'
+  'Star gists to save them on GitHub (syncs across devices), pin gists for quick local access'
 ]
 
 function handleClose() {

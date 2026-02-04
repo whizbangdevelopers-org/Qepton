@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 
+  // GitHub CLI token retrieval (for NixOS/CLI users)
+  getGhToken: () => ipcRenderer.invoke('get-gh-token'),
+
   // Menu event listeners
   onMenuNewGist: (callback: () => void) => {
     ipcRenderer.on('menu-new-gist', callback)
@@ -98,6 +101,9 @@ declare global {
 
       // External links
       openExternal: (url: string) => Promise<boolean>
+
+      // GitHub CLI token retrieval
+      getGhToken: () => Promise<{ success: boolean; token?: string; error?: string }>
 
       // Menu listeners (return cleanup function)
       onMenuNewGist: (callback: () => void) => () => void

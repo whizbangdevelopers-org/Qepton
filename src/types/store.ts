@@ -40,6 +40,9 @@ export interface GistsState {
   // Pinned tags for quick access
   pinnedTags: string[]
 
+  // Pinned gists for quick access (local only)
+  pinnedGistIds: Set<string>
+
   // Starred gists (GitHub stars feature)
   starredGistIds: Set<string>
   starredGists: Record<string, Gist>
@@ -90,6 +93,7 @@ export interface ModalStates {
 export interface NavDrawerSettings {
   allGistsVisible: boolean
   starredVisible: boolean
+  pinnedVisible: boolean
   recentsVisible: boolean
   languagesVisible: boolean
   languagesExpanded: boolean

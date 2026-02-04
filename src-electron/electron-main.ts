@@ -2,6 +2,10 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import os from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 import electronUpdater from 'electron-updater'
 const { autoUpdater } = electronUpdater
 import windowStateKeeper from 'electron-window-state'
@@ -166,6 +170,24 @@ ipcMain.handle('save-config', async (_, key: string, value: unknown) => {
 ipcMain.handle('open-external', async (_, url: string) => {
   await shell.openExternal(url)
   return true
+})
+
+// Retrieve GitHub token from gh CLI (for NixOS/CLI users with keyring-based auth)
+ipcMain.handle('get-gh-token', async () => {
+  try {
+    const { stdout } = await execAsync('gh auth token', { timeout: 5000 })
+    const token = stdout.trim()
+    if (token && token.startsWith('gh')) {
+      return { success: true, token }
+    }
+    return { success: false, error: 'No valid token found' }
+  } catch (error) {
+    // gh CLI not installed or not authenticated
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to retrieve token from gh CLI'
+    }
+  }
 })
 
 // Menu setup

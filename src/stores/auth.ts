@@ -13,7 +13,7 @@ import type { User } from 'src/types/github'
 let _useGistsStore: typeof import('./gists').useGistsStore | null = null
 let _useSearchStore: typeof import('./search').useSearchStore | null = null
 let _useSettingsStore: typeof import('./settings').useSettingsStore | null = null
-let _useUiStore: typeof import('./ui').useUiStore | null = null
+let _useUiStore: typeof import('./ui').useUIStore | null = null
 
 async function getGistsStore() {
   if (!_useGistsStore) {
@@ -42,7 +42,7 @@ async function getSettingsStore() {
 async function getUiStore() {
   if (!_useUiStore) {
     const module = await import('./ui')
-    _useUiStore = module.useUiStore
+    _useUiStore = module.useUIStore
   }
   return _useUiStore()
 }

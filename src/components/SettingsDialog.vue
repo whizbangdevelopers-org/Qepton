@@ -142,6 +142,20 @@
 
             <q-item tag="label">
               <q-item-section>
+                <q-item-label>Pinned Section</q-item-label>
+                <q-item-label caption>Show pinned gists in navigation</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="uiStore.navDrawers.pinnedVisible"
+                  @update:model-value="uiStore.toggleNavDrawerVisibility('pinned')"
+                  color="primary"
+                />
+              </q-item-section>
+            </q-item>
+
+            <q-item tag="label">
+              <q-item-section>
                 <q-item-label>Recent Section</q-item-label>
                 <q-item-label caption>Show recent gists in navigation</q-item-label>
               </q-item-section>
