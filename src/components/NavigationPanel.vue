@@ -44,6 +44,25 @@
         </q-item-section>
       </q-item>
 
+      <!-- Pinned Gists -->
+      <q-item
+        v-if="uiStore.navDrawers.pinnedVisible && gistsStore.pinnedCount > 0"
+        clickable
+        :active="gistsStore.activeTag === 'Pinned'"
+        @click="selectTag('Pinned')"
+        class="tag-item"
+      >
+        <q-item-section avatar>
+          <q-icon name="push_pin" color="deep-purple" />
+        </q-item-section>
+        <q-item-section>
+          <q-item-label>Pinned</q-item-label>
+        </q-item-section>
+        <q-item-section side>
+          <q-badge color="deep-purple">{{ gistsStore.pinnedCount }}</q-badge>
+        </q-item-section>
+      </q-item>
+
       <!-- Recent Gists -->
       <q-item
         v-if="uiStore.navDrawers.recentsVisible && gistsStore.recentCount > 0"
@@ -59,7 +78,19 @@
           <q-item-label>Recent</q-item-label>
         </q-item-section>
         <q-item-section side>
-          <q-badge color="blue-grey">{{ gistsStore.recentCount }}</q-badge>
+          <div class="row items-center no-wrap">
+            <q-badge color="blue-grey" class="q-mr-xs">{{ gistsStore.recentCount }}</q-badge>
+            <q-btn
+              flat
+              dense
+              round
+              size="xs"
+              icon="clear_all"
+              @click.stop="clearRecent"
+            >
+              <q-tooltip>Clear recent</q-tooltip>
+            </q-btn>
+          </div>
         </q-item-section>
       </q-item>
     </div>
@@ -356,6 +387,13 @@ function isPinned(tag: string): boolean {
 
 function togglePin(tag: string) {
   gistsStore.togglePinnedTag(tag)
+}
+
+function clearRecent() {
+  gistsStore.clearRecentGists()
+  if (gistsStore.activeTag === 'Recent') {
+    gistsStore.setActiveTag('All Gists')
+  }
 }
 
 // Drag and drop handlers

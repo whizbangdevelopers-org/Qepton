@@ -51,6 +51,29 @@
               flat
               dense
               round
+              :icon="isStarred ? 'star' : 'star_border'"
+              :color="isStarred ? 'amber' : undefined"
+              :loading="isTogglingState"
+              @click="handleToggleStar"
+              data-test="star-gist-btn"
+            >
+              <q-tooltip>{{ isStarred ? 'Unstar' : 'Star' }}</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
+              :icon="isPinned ? 'push_pin' : 'mdi-pin-outline'"
+              :color="isPinned ? 'deep-purple' : undefined"
+              @click="handleTogglePin"
+              data-test="pin-gist-btn"
+            >
+              <q-tooltip>{{ isPinned ? 'Unpin' : 'Pin' }}</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
               icon="share"
               @click="handleShare"
               data-test="share-gist-btn"
@@ -318,6 +341,18 @@ const gistDescription = computed(() => {
   const parsed = parseDescription(activeGist.value.description)
   return parsed.description || ''
 })
+
+const isStarred = computed(() => {
+  if (!activeGist.value) return false
+  return gistsStore.isStarred(activeGist.value.id)
+})
+
+const isPinned = computed(() => {
+  if (!activeGist.value) return false
+  return gistsStore.isGistPinned(activeGist.value.id)
+})
+
+const isTogglingState = ref(false)
 
 // Watch for gist changes to reset state
 watch(activeGist, (newGist, oldGist) => {
@@ -587,6 +622,42 @@ async function handleShare() {
       icon: 'error'
     })
   }
+}
+
+async function handleToggleStar() {
+  if (!activeGist.value) return
+
+  isTogglingState.value = true
+  try {
+    await gistsStore.toggleStar(activeGist.value.id)
+    $q.notify({
+      type: 'positive',
+      message: isStarred.value ? 'Gist starred' : 'Gist unstarred',
+      icon: isStarred.value ? 'star' : 'star_border',
+      timeout: 1500
+    })
+  } catch (error) {
+    console.error('Failed to toggle star:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update star status',
+      icon: 'error'
+    })
+  } finally {
+    isTogglingState.value = false
+  }
+}
+
+function handleTogglePin() {
+  if (!activeGist.value) return
+
+  gistsStore.togglePinGist(activeGist.value.id)
+  $q.notify({
+    type: 'positive',
+    message: isPinned.value ? 'Gist pinned' : 'Gist unpinned',
+    icon: isPinned.value ? 'push_pin' : 'mdi-pin-off',
+    timeout: 1500
+  })
 }
 </script>
 

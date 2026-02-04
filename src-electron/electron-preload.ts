@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 
+  // GitHub CLI token retrieval (for NixOS/CLI users)
+  getGhToken: () => ipcRenderer.invoke('get-gh-token'),
+
   // Menu event listeners
   onMenuNewGist: (callback: () => void) => {
     ipcRenderer.on('menu-new-gist', callback)
@@ -66,6 +69,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Update actions
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+  // Update check result listener (for manual checks)
+  onUpdateCheckResult: (
+    callback: (event: Electron.IpcRendererEvent, result: UpdateCheckResult) => void
+  ) => {
+    ipcRenderer.on('update-check-result', callback)
+    return () => ipcRenderer.removeListener('update-check-result', callback)
+  },
 
   // Cleanup
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
@@ -85,6 +97,12 @@ interface DownloadProgress {
   total: number
 }
 
+interface UpdateCheckResult {
+  type: 'checking' | 'up-to-date' | 'error'
+  version?: string
+  message?: string
+}
+
 // Declare the electronAPI type for TypeScript
 declare global {
   interface Window {
@@ -98,6 +116,9 @@ declare global {
 
       // External links
       openExternal: (url: string) => Promise<boolean>
+
+      // GitHub CLI token retrieval
+      getGhToken: () => Promise<{ success: boolean; token?: string; error?: string }>
 
       // Menu listeners (return cleanup function)
       onMenuNewGist: (callback: () => void) => () => void
@@ -121,6 +142,12 @@ declare global {
 
       // Update actions
       quitAndInstall: () => Promise<void>
+      checkForUpdates: () => Promise<void>
+
+      // Update check result listener
+      onUpdateCheckResult: (
+        callback: (event: Electron.IpcRendererEvent, result: UpdateCheckResult) => void
+      ) => () => void
 
       // Cleanup
       removeAllListeners: (channel: string) => void

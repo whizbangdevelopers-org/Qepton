@@ -27,6 +27,7 @@ export const useGistsStore = defineStore('gists', {
     loadingGistId: null,
     gistTags: {},
     pinnedTags: [],
+    pinnedGistIds: new Set(),
     starredGistIds: new Set(),
     starredGists: {},
     recentGists: [],
@@ -71,6 +72,13 @@ export const useGistsStore = defineStore('gists', {
           return Object.values(state.starredGists).sort(
             (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
           )
+        }
+
+        if (tag === 'Pinned') {
+          return Array.from(state.pinnedGistIds)
+            .map(id => state.gists[id] || state.starredGists[id])
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         }
 
         if (tag === 'Recent') {
@@ -224,6 +232,32 @@ export const useGistsStore = defineStore('gists', {
       state =>
       (gistId: string): boolean => {
         return state.starredGistIds.has(gistId)
+      },
+
+    /**
+     * Get pinned gists as array (sorted by updated_at)
+     */
+    pinnedGistsArray: (state): Gist[] => {
+      return Array.from(state.pinnedGistIds)
+        .map(id => state.gists[id] || state.starredGists[id])
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    },
+
+    /**
+     * Get pinned gists count
+     */
+    pinnedCount: (state): number => {
+      return state.pinnedGistIds.size
+    },
+
+    /**
+     * Check if a gist is pinned
+     */
+    isGistPinned:
+      state =>
+      (gistId: string): boolean => {
+        return state.pinnedGistIds.has(gistId)
       },
 
     /**
@@ -392,6 +426,15 @@ export const useGistsStore = defineStore('gists', {
       }
 
       settingsSync.saveSettings({ recentGists: this.recentGists })
+    },
+
+    /**
+     * Clear all recent gists
+     */
+    clearRecentGists(): void {
+      this.recentGists = []
+      settingsSync.saveSettings({ recentGists: [] })
+      console.debug('[Gists] Recent gists cleared')
     },
 
     /**
@@ -705,6 +748,37 @@ export const useGistsStore = defineStore('gists', {
     },
 
     /**
+     * Pin a gist (local only, stored in localStorage)
+     */
+    pinGist(gistId: string): void {
+      if (!this.pinnedGistIds.has(gistId)) {
+        this.pinnedGistIds.add(gistId)
+        console.debug('[Gists] Gist pinned:', gistId)
+      }
+    },
+
+    /**
+     * Unpin a gist
+     */
+    unpinGist(gistId: string): void {
+      if (this.pinnedGistIds.has(gistId)) {
+        this.pinnedGistIds.delete(gistId)
+        console.debug('[Gists] Gist unpinned:', gistId)
+      }
+    },
+
+    /**
+     * Toggle pin status for a gist
+     */
+    togglePinGist(gistId: string): void {
+      if (this.pinnedGistIds.has(gistId)) {
+        this.unpinGist(gistId)
+      } else {
+        this.pinGist(gistId)
+      }
+    },
+
+    /**
      * Toggle gist selection (for bulk operations)
      */
     toggleGistSelection(gistId: string): void {
@@ -764,6 +838,78 @@ export const useGistsStore = defineStore('gists', {
     },
 
     /**
+     * Bulk star selected gists
+     */
+    async bulkStarGists(gistIds: string[]): Promise<{ success: string[]; failed: string[] }> {
+      const success: string[] = []
+      const failed: string[] = []
+
+      for (const gistId of gistIds) {
+        try {
+          await this.starGist(gistId)
+          success.push(gistId)
+        } catch {
+          failed.push(gistId)
+        }
+      }
+
+      this.deselectAllGists()
+      return { success, failed }
+    },
+
+    /**
+     * Bulk unstar selected gists
+     */
+    async bulkUnstarGists(gistIds: string[]): Promise<{ success: string[]; failed: string[] }> {
+      const success: string[] = []
+      const failed: string[] = []
+
+      for (const gistId of gistIds) {
+        try {
+          await this.unstarGist(gistId)
+          success.push(gistId)
+        } catch {
+          failed.push(gistId)
+        }
+      }
+
+      this.deselectAllGists()
+      return { success, failed }
+    },
+
+    /**
+     * Bulk pin selected gists (local only)
+     */
+    bulkPinGists(gistIds: string[]): number {
+      let count = 0
+      for (const gistId of gistIds) {
+        if (!this.pinnedGistIds.has(gistId)) {
+          this.pinnedGistIds.add(gistId)
+          count++
+        }
+      }
+      this.deselectAllGists()
+      console.debug(`[Gists] Bulk pinned ${count} gists`)
+      return count
+    },
+
+    /**
+     * Bulk unpin selected gists (local only)
+     */
+    bulkUnpinGists(gistIds: string[]): number {
+      let count = 0
+      for (const gistId of gistIds) {
+        if (this.pinnedGistIds.has(gistId)) {
+          this.pinnedGistIds.delete(gistId)
+          count++
+        }
+      }
+      this.deselectAllGists()
+      console.debug(`[Gists] Bulk unpinned ${count} gists`)
+      return count
+    },
+
+    /**
      * Reset all gists state (called on logout)
      */
     $reset(): void {
@@ -772,6 +918,7 @@ export const useGistsStore = defineStore('gists', {
       this.loadingGistId = null
       this.gistTags = {}
       this.pinnedTags = []
+      this.pinnedGistIds = new Set()
       this.starredGistIds = new Set()
       this.starredGists = {}
       this.recentGists = []
@@ -791,6 +938,24 @@ export const useGistsStore = defineStore('gists', {
 
   // Persist certain state
   persist: {
-    paths: ['pinnedTags', 'lastSyncTime', 'activeTag', 'recentGists']
+    paths: ['pinnedTags', 'pinnedGistIds', 'lastSyncTime', 'activeTag', 'recentGists'],
+    serializer: {
+      serialize: (state) => {
+        // Convert Sets to arrays for JSON serialization
+        const serializable = { ...state }
+        if (serializable.pinnedGistIds instanceof Set) {
+          serializable.pinnedGistIds = Array.from(serializable.pinnedGistIds) as unknown as Set<string>
+        }
+        return JSON.stringify(serializable)
+      },
+      deserialize: (value) => {
+        const state = JSON.parse(value)
+        // Convert arrays back to Sets
+        if (Array.isArray(state.pinnedGistIds)) {
+          state.pinnedGistIds = new Set(state.pinnedGistIds)
+        }
+        return state
+      }
+    }
   }
 })

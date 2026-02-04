@@ -18,6 +18,57 @@
         <q-btn
           flat
           dense
+          icon="star"
+          label="Star"
+          color="white"
+          @click="handleBulkStar"
+          :loading="isStarring"
+          data-test="bulk-star-btn"
+        >
+          <q-tooltip>Star selected gists</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          flat
+          dense
+          icon="star_border"
+          label="Unstar"
+          color="white"
+          @click="handleBulkUnstar"
+          :loading="isUnstarring"
+          data-test="bulk-unstar-btn"
+        >
+          <q-tooltip>Unstar selected gists</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          flat
+          dense
+          icon="push_pin"
+          label="Pin"
+          color="white"
+          @click="handleBulkPin"
+          data-test="bulk-pin-btn"
+        >
+          <q-tooltip>Pin selected gists</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          flat
+          dense
+          icon="push_pin"
+          label="Unpin"
+          color="white"
+          class="unpin-btn"
+          @click="handleBulkUnpin"
+          data-test="bulk-unpin-btn"
+        >
+          <q-tooltip>Unpin selected gists</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          flat
+          dense
           icon="delete"
           label="Delete"
           color="white"
@@ -82,6 +133,8 @@ const $q = useQuasar()
 const gistsStore = useGistsStore()
 
 const isDeleting = ref(false)
+const isStarring = ref(false)
+const isUnstarring = ref(false)
 const showDeleteConfirm = ref(false)
 
 const allSelected = computed(() => {
@@ -98,6 +151,116 @@ function toggleSelectAll(value: boolean) {
     gistsStore.selectAllGists(props.visibleGistIds)
   } else {
     gistsStore.deselectAllGists()
+  }
+}
+
+async function handleBulkStar() {
+  if (isStarring.value) return
+
+  isStarring.value = true
+  const selectedIds = Array.from(gistsStore.selectedGistIds)
+
+  try {
+    const { success, failed } = await gistsStore.bulkStarGists(selectedIds)
+
+    if (success.length > 0) {
+      $q.notify({
+        type: 'positive',
+        message: `Starred ${success.length} gist${success.length > 1 ? 's' : ''}`,
+        icon: 'star'
+      })
+    }
+
+    if (failed.length > 0) {
+      $q.notify({
+        type: 'warning',
+        message: `Failed to star ${failed.length} gist${failed.length > 1 ? 's' : ''}`,
+        icon: 'warning'
+      })
+    }
+  } catch (error) {
+    console.error('Bulk star failed:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to star gists',
+      icon: 'error'
+    })
+  } finally {
+    isStarring.value = false
+  }
+}
+
+async function handleBulkUnstar() {
+  if (isUnstarring.value) return
+
+  isUnstarring.value = true
+  const selectedIds = Array.from(gistsStore.selectedGistIds)
+
+  try {
+    const { success, failed } = await gistsStore.bulkUnstarGists(selectedIds)
+
+    if (success.length > 0) {
+      $q.notify({
+        type: 'positive',
+        message: `Unstarred ${success.length} gist${success.length > 1 ? 's' : ''}`,
+        icon: 'star_border'
+      })
+    }
+
+    if (failed.length > 0) {
+      $q.notify({
+        type: 'warning',
+        message: `Failed to unstar ${failed.length} gist${failed.length > 1 ? 's' : ''}`,
+        icon: 'warning'
+      })
+    }
+  } catch (error) {
+    console.error('Bulk unstar failed:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to unstar gists',
+      icon: 'error'
+    })
+  } finally {
+    isUnstarring.value = false
+  }
+}
+
+function handleBulkPin() {
+  const selectedIds = Array.from(gistsStore.selectedGistIds)
+  const count = gistsStore.bulkPinGists(selectedIds)
+
+  if (count > 0) {
+    $q.notify({
+      type: 'positive',
+      message: `Pinned ${count} gist${count > 1 ? 's' : ''}`,
+      icon: 'push_pin'
+    })
+  } else {
+    $q.notify({
+      type: 'info',
+      message: 'All selected gists are already pinned',
+      icon: 'info'
+    })
+  }
+}
+
+function handleBulkUnpin() {
+  const selectedIds = Array.from(gistsStore.selectedGistIds)
+  const count = gistsStore.bulkUnpinGists(selectedIds)
+
+  if (count > 0) {
+    $q.notify({
+      type: 'positive',
+      message: `Unpinned ${count} gist${count > 1 ? 's' : ''}`,
+      icon: 'push_pin'
+    })
+  } else {
+    $q.notify({
+      type: 'info',
+      message: 'None of the selected gists were pinned',
+      icon: 'info'
+    })
   }
 }
 
@@ -154,6 +317,10 @@ async function confirmBulkDelete() {
   padding: 8px 16px;
   border-radius: 4px;
   margin-bottom: 8px;
+}
+
+.unpin-btn :deep(.q-icon) {
+  transform: rotate(45deg);
 }
 
 .slide-up-enter-active,

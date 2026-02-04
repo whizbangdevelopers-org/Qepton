@@ -40,6 +40,7 @@ export const useUIStore = defineStore('ui', {
     navDrawers: {
       allGistsVisible: true,
       starredVisible: true,
+      pinnedVisible: true,
       recentsVisible: true,
       languagesVisible: true,
       languagesExpanded: true,
@@ -245,11 +246,13 @@ export const useUIStore = defineStore('ui', {
     /**
      * Toggle nav drawer visibility
      */
-    toggleNavDrawerVisibility(drawer: 'allGists' | 'starred' | 'recents' | 'languages' | 'tags'): void {
+    toggleNavDrawerVisibility(drawer: 'allGists' | 'starred' | 'pinned' | 'recents' | 'languages' | 'tags'): void {
       if (drawer === 'allGists') {
         this.navDrawers.allGistsVisible = !this.navDrawers.allGistsVisible
       } else if (drawer === 'starred') {
         this.navDrawers.starredVisible = !this.navDrawers.starredVisible
+      } else if (drawer === 'pinned') {
+        this.navDrawers.pinnedVisible = !this.navDrawers.pinnedVisible
       } else if (drawer === 'recents') {
         this.navDrawers.recentsVisible = !this.navDrawers.recentsVisible
       } else if (drawer === 'languages') {
