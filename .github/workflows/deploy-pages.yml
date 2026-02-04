@@ -17,6 +17,8 @@ concurrency:
 
 jobs:
   build:
+    # Only run on free repo (Qepton), not dev repo (Qepton-Dev)
+    if: github.repository == 'whizbangdevelopers-org/Qepton'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
