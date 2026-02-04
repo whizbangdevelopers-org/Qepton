@@ -396,7 +396,7 @@ jobs:
 
   update-nur:
     name: Update NUR Package
-    needs: publish
+    needs: release-to-free  # Must run after assets are copied to free repo
     runs-on: ubuntu-latest
 
     steps:
@@ -409,9 +409,9 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"  # Remove 'v' prefix
 
-          # Download AppImage and calculate hash
-          APPIMAGE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/Qepton-${VERSION}.AppImage"
-          echo "Downloading: $APPIMAGE_URL"
+          # Download AppImage from FREE repo (where NUR package fetches from)
+          APPIMAGE_URL="https://github.com/whizbangdevelopers-org/Qepton/releases/download/v${VERSION}/Qepton-${VERSION}.AppImage"
+          echo "Downloading from free repo: $APPIMAGE_URL"
 
           curl -L -o Qepton.AppImage "$APPIMAGE_URL"
           HASH=$(nix hash file --sri Qepton.AppImage)
