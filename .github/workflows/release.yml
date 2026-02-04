@@ -352,30 +352,45 @@ jobs:
     name: Publish Release
     needs: release
     runs-on: ubuntu-latest
-    environment: production-release
     permissions:
       contents: write
 
     steps:
-      - name: Publish release
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify release is published
         run: |
           TAG="${{ github.ref_name }}"
-          echo "Publishing release $TAG..."
+          echo "Verifying release $TAG..."
 
-          # Check if release exists and is draft
+          # Wait for release to be available (electron-builder publishes it)
+          for i in {1..30}; do
+            if gh release view "$TAG" --json isDraft,name 2>/dev/null; then
+              echo "Release $TAG found"
+              break
+            fi
+            echo "Waiting for release... (attempt $i/30)"
+            sleep 10
+          done
+
+          # Check if release exists
           IS_DRAFT=$(gh release view "$TAG" --json isDraft -q '.isDraft' 2>/dev/null || echo "unknown")
 
           if [ "$IS_DRAFT" = "true" ]; then
             gh release edit "$TAG" --draft=false
             echo "✅ Release $TAG is now PUBLIC"
-            echo ""
-            echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG"
           elif [ "$IS_DRAFT" = "false" ]; then
-            echo "Release $TAG is already published"
+            echo "✅ Release $TAG is already published"
           else
-            echo "❌ Could not find release $TAG"
+            echo "❌ Could not find release $TAG after 5 minutes"
             exit 1
           fi
+
+          # Show asset count
+          ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length')
+          echo "Release $TAG has $ASSET_COUNT assets"
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -419,3 +434,153 @@ jobs:
               }
             }'
           echo "Triggered NUR package update for version ${{ steps.hash.outputs.version }}"
+
+  release-to-free:
+    name: Release to Free Repo
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Dev repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync to Free repo
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          echo "Syncing $TAG to Qepton (Free) repo..."
+
+          # Clone Free repo
+          git clone https://x-access-token:${GH_TOKEN}@github.com/whizbangdevelopers-org/Qepton.git /tmp/qepton-free
+          cd /tmp/qepton-free
+
+          # Configure git for this repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create sync branch
+          SYNC_BRANCH="release-${VERSION}"
+          git checkout -b "$SYNC_BRANCH"
+
+          # Copy files from Dev (excluding dev-only)
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='scripts/release-to.sh' \
+            --exclude='scripts/sync-issues.sh' \
+            --exclude='.githooks/' \
+            --exclude='.claude/' \
+            --exclude='docker-build/' \
+            --exclude='e2e-docker/' \
+            --exclude='testing/' \
+            --exclude='docs/' \
+            --exclude='flatpak/' \
+            --exclude='nixos-build/' \
+            --exclude='playwright.config.ts' \
+            --exclude='vitest.config.ts' \
+            --exclude='.mcp.json' \
+            --exclude='flake.lock' \
+            --exclude='flake.nix' \
+            --exclude='CLAUDE.md' \
+            --exclude='TESTING.md' \
+            --exclude='DEVELOPMENT.md' \
+            --exclude='.github/workflows/snap.yml' \
+            --exclude='.github/workflows/test.yml' \
+            --exclude='.github/workflows/sync-to-free.yml' \
+            --exclude='.github/workflows/dependabot-labeler.yml' \
+            --exclude='.github/workflows/dependabot-tracker.yml' \
+            --exclude='.github/dependabot.yml' \
+            --exclude='.github/issue-mapping.json' \
+            "$GITHUB_WORKSPACE/" ./
+
+          # Patch quasar.config.cjs for Free repo
+          if [[ -f quasar.config.cjs ]]; then
+            sed -i "s/repo: 'Qepton-Dev'/repo: 'Qepton'/" quasar.config.cjs
+          fi
+
+          # Commit and push if there are changes
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to sync - repos are already in sync"
+            echo "SYNC_NEEDED=false" >> $GITHUB_ENV
+          else
+            git commit -m "Release $TAG"
+            git push origin "$SYNC_BRANCH"
+
+            # Create and merge PR
+            gh pr create --repo whizbangdevelopers-org/Qepton \
+              --title "Release $TAG" \
+              --body "Automated release sync from Qepton-Dev" \
+              --head "$SYNC_BRANCH" \
+              --base main
+
+            gh pr merge "$SYNC_BRANCH" --squash --admin --delete-branch --repo whizbangdevelopers-org/Qepton
+            echo "SYNC_NEEDED=true" >> $GITHUB_ENV
+            echo "✅ Code synced to Free repo"
+          fi
+
+      - name: Create release on Free repo
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          # Get release notes from Dev
+          NOTES=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "Release $TAG")
+
+          # Create tag on Free repo
+          cd /tmp/qepton-free
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          git tag -f "$TAG"
+          git push origin "$TAG" --force
+
+          # Create release on Free repo (skip if already exists)
+          if gh release view "$TAG" --repo whizbangdevelopers-org/Qepton 2>/dev/null; then
+            echo "Release $TAG already exists on Free repo"
+          else
+            gh release create "$TAG" \
+              --repo whizbangdevelopers-org/Qepton \
+              --title "$VERSION" \
+              --notes "$NOTES"
+            echo "✅ Release $TAG created on Free repo"
+          fi
+
+      - name: Copy release assets to Free repo
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          echo "Copying release assets from Dev to Free..."
+
+          # Download all assets from Dev release
+          mkdir -p /tmp/release-assets
+          cd /tmp/release-assets
+          gh release download "$TAG" --repo whizbangdevelopers-org/Qepton-Dev
+
+          # Upload to Free release
+          for file in *; do
+            if [ -f "$file" ]; then
+              echo "Uploading: $file"
+              gh release upload "$TAG" "$file" --repo whizbangdevelopers-org/Qepton --clobber || echo "  Failed: $file"
+            fi
+          done
+
+          ASSET_COUNT=$(gh release view "$TAG" --repo whizbangdevelopers-org/Qepton --json assets -q '.assets | length')
+          echo "✅ Release $TAG on Free repo has $ASSET_COUNT assets"
