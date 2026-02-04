@@ -1,0 +1,448 @@
+name: Create Verification Issues
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to create verification for (e.g., v1.0.13)'
+        required: true
+
+env:
+  PARENT_LABELS: "release,release-verify,release-verify-parent"
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${{ inputs.release_tag }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_num=${VERSION#v}" >> $GITHUB_OUTPUT
+          echo "Processing version: $VERSION"
+
+      - name: Check for existing verification issues
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          EXISTING=$(gh issue list --label release-verify-parent --search "[Release $VERSION]" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Verification issues already exist for $VERSION (parent: #$EXISTING)"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "parent_num=$EXISTING" >> $GITHUB_OUTPUT
+          else
+            echo "No existing verification issues for $VERSION"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create parent issue
+        if: steps.check.outputs.exists != 'true'
+        id: parent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cat > /tmp/parent_body.md << 'PARENTEOF'
+          ## Release Verification Tracker
+
+          Tracking verification of release **VERSION_PLACEHOLDER** across all supported platforms.
+
+          ### Sub-Issues by Test Environment
+
+          <!-- SUB_ISSUES_PLACEHOLDER -->
+
+          ### Status Legend
+          - :white_large_square: Not started
+          - :arrows_counterclockwise: In progress
+          - :white_check_mark: Verified
+          - :pause_button: Skipped (no hardware)
+          - :crystal_ball: Future (not yet released)
+
+          ### Skipped This Release
+          - macOS x64 (Intel) - No hardware available
+          - iOS/Android - Mobile builds not yet released
+
+          ---
+
+          **Release URL:** https://github.com/${{ github.repository }}/releases/tag/VERSION_PLACEHOLDER
+
+          > Auto-created by [release-verify-create.yml](.github/workflows/release-verify-create.yml)
+          PARENTEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" /tmp/parent_body.md
+
+          PARENT_URL=$(gh issue create \
+            --title "[Release $VERSION] Verification Tracker" \
+            --label "$PARENT_LABELS" \
+            --assignee wriver4 \
+            --body-file /tmp/parent_body.md)
+
+          PARENT_NUM=$(echo "$PARENT_URL" | grep -oE '[0-9]+$')
+          echo "parent_url=$PARENT_URL" >> $GITHUB_OUTPUT
+          echo "parent_num=$PARENT_NUM" >> $GITHUB_OUTPUT
+          echo "Created parent issue: $PARENT_URL"
+
+      - name: Create Windows sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: windows
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/windows_body.md << 'WINEOF'
+          ## Windows Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** Win10 Laptop
+
+          ### NSIS Installer (.exe)
+          - [ ] Downloads from release
+          - [ ] Installer runs without errors
+          - [ ] App installs to correct location
+          - [ ] App launches
+          - [ ] Login/OAuth works
+          - [ ] Gists load and display
+          - [ ] App closes cleanly
+          - [ ] Uninstalls cleanly (Add/Remove Programs)
+
+          ### Portable Archive (.7z)
+          - [ ] Downloads from release
+          - [ ] Extracts with 7-Zip
+          - [ ] App runs directly from extracted folder
+          - [ ] App closes cleanly
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          WINEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/windows_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] Windows (Win10 Laptop)" \
+            --label "release,release-verify,release-verify-windows" \
+            --assignee wriver4 \
+            --body-file /tmp/windows_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Create macOS ARM64 sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: macos
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/macos_body.md << 'MACEOF'
+          ## macOS ARM64 Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** Mac Mini M1
+
+          ### DMG (arm64)
+          - [ ] Downloads from release
+          - [ ] DMG mounts
+          - [ ] Drags to Applications
+          - [ ] App launches (passes Gatekeeper)
+          - [ ] Login/OAuth works
+          - [ ] Gists load and display
+          - [ ] App closes cleanly
+          - [ ] Drags to Trash cleanly
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          MACEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/macos_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] macOS (Mac Mini M1)" \
+            --label "release,release-verify,release-verify-macos" \
+            --assignee wriver4 \
+            --body-file /tmp/macos_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Create Ubuntu sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: ubuntu
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/ubuntu_body.md << 'UBUNTUEOF'
+          ## Ubuntu Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** Ubuntu Laptop
+
+          ### AppImage
+          - [ ] Downloads from release
+          - [ ] Makes executable (`chmod +x`)
+          - [ ] App launches
+          - [ ] Login/OAuth works
+          - [ ] Gists load and display
+          - [ ] App closes cleanly
+
+          ### DEB Package
+          - [ ] Downloads from release
+          - [ ] Installs via `sudo dpkg -i` (or `apt install`)
+          - [ ] App launches from menu
+          - [ ] App launches from CLI (`qepton`)
+          - [ ] Login/OAuth works
+          - [ ] Uninstalls cleanly (`sudo dpkg -r qepton`)
+
+          ### Snap Package
+          - [ ] Downloads from release
+          - [ ] Installs via `sudo snap install --dangerous`
+          - [ ] App launches
+          - [ ] Login/OAuth works
+          - [ ] Uninstalls cleanly (`sudo snap remove qepton`)
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          UBUNTUEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/ubuntu_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] Ubuntu (Ubuntu Laptop)" \
+            --label "release,release-verify,release-verify-ubuntu" \
+            --assignee wriver4 \
+            --body-file /tmp/ubuntu_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Create Fedora VM sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: fedora
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/fedora_body.md << 'FEDORAEOF'
+          ## Fedora VM Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** Fedora VM (KVM)
+
+          ### RPM Package
+          - [ ] Downloads from release
+          - [ ] Installs via `sudo dnf install ./qepton-*.rpm`
+          - [ ] App launches from menu
+          - [ ] Login/OAuth works
+          - [ ] Uninstalls cleanly (`sudo dnf remove qepton`)
+
+          ### Flatpak
+          - [ ] Installs via `flatpak install ./qepton.flatpak`
+          - [ ] App launches
+          - [ ] Sandbox permissions work (OAuth, filesystem)
+          - [ ] Uninstalls cleanly (`flatpak uninstall com.whizbangdevelopers.Qepton`)
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          FEDORAEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/fedora_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] Fedora VM (rpm, Flatpak)" \
+            --label "release,release-verify,release-verify-fedora" \
+            --assignee wriver4 \
+            --body-file /tmp/fedora_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Create Arch VM sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: arch
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/arch_body.md << 'ARCHEOF'
+          ## Arch Linux VM Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** Arch VM (KVM)
+
+          See [ARCHLINUX-VM-SETUP.md](docs/ARCHLINUX-VM-SETUP.md) for VM setup instructions.
+
+          ### Pacman Package
+          - [ ] Downloads from release
+          - [ ] Installs via `sudo pacman -U qepton-*.pkg.tar.zst`
+          - [ ] App launches from menu
+          - [ ] Login/OAuth works
+          - [ ] Uninstalls cleanly (`sudo pacman -R qepton`)
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          ARCHEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/arch_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] Arch Linux VM (pacman)" \
+            --label "release,release-verify,release-verify-arch" \
+            --assignee wriver4 \
+            --body-file /tmp/arch_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Create PWA sub-issue
+        if: steps.check.outputs.exists != 'true'
+        id: pwa
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+        run: |
+          sleep 2  # Avoid rate limiting
+          cat > /tmp/pwa_body.md << 'PWAEOF'
+          ## PWA Verification (VERSION_PLACEHOLDER)
+
+          **Parent Issue:** #PARENT_PLACEHOLDER
+          **Test Environment:** GitHub Pages
+
+          **Note:** PWA deploys automatically via GitHub Pages. Manual verification recommended.
+
+          ### PWA (GitHub Pages)
+          - [ ] PWA loads at https://whizbangdevelopers-org.github.io/Qepton/
+          - [ ] Version number matches release
+          - [ ] Login/OAuth works
+          - [ ] Gists load and display
+          - [ ] PWA install prompt appears (desktop browser)
+          - [ ] PWA works offline (cached assets)
+
+          ---
+
+          **When complete:** Close this issue to update the README verification table.
+          PWAEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g; s/PARENT_PLACEHOLDER/$PARENT_NUM/g" /tmp/pwa_body.md
+
+          URL=$(gh issue create \
+            --title "[Verify $VERSION] PWA (GitHub Pages)" \
+            --label "release,release-verify,release-verify-pwa" \
+            --assignee wriver4 \
+            --body-file /tmp/pwa_body.md)
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "num=$(echo "$URL" | grep -oE '[0-9]+$')" >> $GITHUB_OUTPUT
+
+      - name: Update parent issue with sub-issue links
+        if: steps.check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PARENT_NUM: ${{ steps.parent.outputs.parent_num }}
+          WIN_NUM: ${{ steps.windows.outputs.num }}
+          MAC_NUM: ${{ steps.macos.outputs.num }}
+          UBUNTU_NUM: ${{ steps.ubuntu.outputs.num }}
+          FEDORA_NUM: ${{ steps.fedora.outputs.num }}
+          ARCH_NUM: ${{ steps.arch.outputs.num }}
+          PWA_NUM: ${{ steps.pwa.outputs.num }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cat > /tmp/parent_updated.md << UPDATEEOF
+          ## Release Verification Tracker
+
+          Tracking verification of release **$VERSION** across all supported platforms.
+
+          ### Sub-Issues by Test Environment
+
+          - [ ] #$WIN_NUM - Windows (Win10 Laptop)
+          - [ ] #$MAC_NUM - macOS ARM64 (Mac Mini M1)
+          - [ ] #$UBUNTU_NUM - Ubuntu (Ubuntu Laptop)
+          - [ ] #$FEDORA_NUM - Fedora VM (rpm, Flatpak)
+          - [ ] #$ARCH_NUM - Arch Linux VM (pacman)
+          - [ ] #$PWA_NUM - PWA (GitHub Pages)
+
+          ### Status Legend
+          - :white_large_square: Not started
+          - :arrows_counterclockwise: In progress
+          - :white_check_mark: Verified
+          - :pause_button: Skipped (no hardware)
+          - :crystal_ball: Future (not yet released)
+
+          ### Skipped This Release
+          - macOS x64 (Intel) - No hardware available
+          - iOS/Android - Mobile builds not yet released
+
+          ---
+
+          **Release URL:** https://github.com/${{ github.repository }}/releases/tag/$VERSION
+
+          > Auto-created by [release-verify-create.yml](.github/workflows/release-verify-create.yml)
+          UPDATEEOF
+
+          gh issue edit "$PARENT_NUM" --body-file /tmp/parent_updated.md
+          echo "Updated parent issue #$PARENT_NUM with sub-issue links"
+
+      - name: Summary
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          echo "## Verification Issues Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Issue | Platform | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Parent | Tracker | ${{ steps.parent.outputs.parent_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows | Win10 Laptop | ${{ steps.windows.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS | Mac Mini M1 | ${{ steps.macos.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ubuntu | Ubuntu Laptop | ${{ steps.ubuntu.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fedora | Fedora VM | ${{ steps.fedora.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arch | Arch VM | ${{ steps.arch.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PWA | GitHub Pages | ${{ steps.pwa.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Summary (already exists)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          echo "## Verification Issues Already Exist" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Parent issue: #${{ steps.check.outputs.parent_num }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No new issues created." >> $GITHUB_STEP_SUMMARY

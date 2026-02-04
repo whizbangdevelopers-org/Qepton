@@ -2,6 +2,10 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import os from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 import electronUpdater from 'electron-updater'
 const { autoUpdater } = electronUpdater
 import windowStateKeeper from 'electron-window-state'
@@ -168,6 +172,24 @@ ipcMain.handle('open-external', async (_, url: string) => {
   return true
 })
 
+// Retrieve GitHub token from gh CLI (for NixOS/CLI users with keyring-based auth)
+ipcMain.handle('get-gh-token', async () => {
+  try {
+    const { stdout } = await execAsync('gh auth token', { timeout: 5000 })
+    const token = stdout.trim()
+    if (token && token.startsWith('gh')) {
+      return { success: true, token }
+    }
+    return { success: false, error: 'No valid token found' }
+  } catch (error) {
+    // gh CLI not installed or not authenticated
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to retrieve token from gh CLI'
+    }
+  }
+})
+
 // Menu setup
 function setupMenu() {
   const isMac = platform === 'darwin'
@@ -290,15 +312,22 @@ function setupMenu() {
       role: 'help',
       submenu: [
         {
+          label: 'Check for Updates...',
+          click: () => {
+            checkForUpdatesManually()
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'View on GitHub',
           click: async () => {
-            await shell.openExternal('https://github.com/hackjutsu/Lepton')
+            await shell.openExternal('https://github.com/whizbangdevelopers-org/Qepton')
           }
         },
         {
           label: 'Report Issue',
           click: async () => {
-            await shell.openExternal('https://github.com/hackjutsu/Lepton/issues')
+            await shell.openExternal('https://github.com/whizbangdevelopers-org/Qepton/issues')
           }
         }
       ]
@@ -309,6 +338,9 @@ function setupMenu() {
   Menu.setApplicationMenu(menu)
 }
 
+// Track if manual update check is in progress
+let isManualUpdateCheck = false
+
 // Auto-updater
 function setupAutoUpdater() {
   if (process.env.DEBUGGING) {
@@ -317,6 +349,13 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', error => {
     console.error('Auto-updater error:', error)
+    if (isManualUpdateCheck) {
+      mainWindow?.webContents.send('update-check-result', {
+        type: 'error',
+        message: error.message || 'Update check failed'
+      })
+      isManualUpdateCheck = false
+    }
   })
 
   autoUpdater.on('checking-for-update', () => {
@@ -326,10 +365,20 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', info => {
     console.log('Update available:', info.version)
     mainWindow?.webContents.send('update-available', info)
+    if (isManualUpdateCheck) {
+      isManualUpdateCheck = false
+    }
   })
 
-  autoUpdater.on('update-not-available', () => {
+  autoUpdater.on('update-not-available', info => {
     console.log('No updates available')
+    if (isManualUpdateCheck) {
+      mainWindow?.webContents.send('update-check-result', {
+        type: 'up-to-date',
+        version: info.version
+      })
+      isManualUpdateCheck = false
+    }
   })
 
   autoUpdater.on('download-progress', progressObj => {
@@ -348,7 +397,35 @@ function setupAutoUpdater() {
   }, 3000)
 }
 
+// Manual update check (triggered from menu)
+function checkForUpdatesManually() {
+  if (process.env.DEBUGGING) {
+    mainWindow?.webContents.send('update-check-result', {
+      type: 'error',
+      message: 'Update checks are disabled in development mode'
+    })
+    return
+  }
+
+  isManualUpdateCheck = true
+  mainWindow?.webContents.send('update-check-result', { type: 'checking' })
+
+  autoUpdater.checkForUpdates().catch(err => {
+    console.error('Manual update check failed:', err.message)
+    mainWindow?.webContents.send('update-check-result', {
+      type: 'error',
+      message: err.message || 'Update check failed'
+    })
+    isManualUpdateCheck = false
+  })
+}
+
 // Handle install/quit for auto-updater
 ipcMain.handle('quit-and-install', async () => {
   autoUpdater.quitAndInstall()
+})
+
+// Handle manual update check from renderer
+ipcMain.handle('check-for-updates', async () => {
+  checkForUpdatesManually()
 })

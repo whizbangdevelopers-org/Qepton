@@ -5,6 +5,7 @@
  */
 
 import { boot } from 'quasar/wrappers'
+import { Notify } from 'quasar'
 import { useUIStore } from 'src/stores/ui'
 import { useGistsStore } from 'src/stores/gists'
 
@@ -81,8 +82,7 @@ export default boot(() => {
       uiStore.setUpdateAvailable({
         version: info.version,
         releaseDate: info.releaseDate,
-        releaseNotes: info.releaseNotes || null,
-        downloadUrl: ''
+        releaseNotes: info.releaseNotes
       })
     })
   )
@@ -96,6 +96,35 @@ export default boot(() => {
   cleanups.push(
     window.electronAPI.onUpdateDownloaded((_, info) => {
       console.debug('[Electron IPC] Update downloaded:', info.version)
+    })
+  )
+
+  // Manual update check result listener
+  cleanups.push(
+    window.electronAPI.onUpdateCheckResult((_, result) => {
+      console.debug('[Electron IPC] Update check result:', result)
+      if (result.type === 'checking') {
+        Notify.create({
+          type: 'info',
+          message: 'Checking for updates...',
+          icon: 'update',
+          timeout: 2000
+        })
+      } else if (result.type === 'up-to-date') {
+        Notify.create({
+          type: 'positive',
+          message: `You're running the latest version (v${result.version})`,
+          icon: 'check_circle',
+          timeout: 3000
+        })
+      } else if (result.type === 'error') {
+        Notify.create({
+          type: 'warning',
+          message: result.message || 'Update check failed',
+          icon: 'warning',
+          timeout: 4000
+        })
+      }
     })
   )
 

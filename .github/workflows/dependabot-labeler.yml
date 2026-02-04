@@ -1,0 +1,109 @@
+name: Dependabot PR Labeler
+
+# Auto-labels Dependabot PRs based on dependency type and version change
+# Labels:
+#   - ready-to-merge: Safe to merge (Actions updates, minor/patch updates)
+#   - blocked-by-quasar: Major upgrade blocked by Quasar compatibility
+#   - needs-review: Requires manual review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  label:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label GitHub Actions updates
+        if: steps.metadata.outputs.package-ecosystem == 'github_actions'
+        run: gh pr edit "$PR_URL" --add-label "ready-to-merge"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label minor/patch updates
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' &&
+          steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr edit "$PR_URL" --add-label "ready-to-merge"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if blocked by Quasar
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' &&
+          steps.metadata.outputs.update-type == 'version-update:semver-major'
+        id: quasar-check
+        run: |
+          DEP_NAME="${{ steps.metadata.outputs.dependency-names }}"
+
+          # Dependencies that require Quasar compatibility
+          QUASAR_BLOCKED=(
+            "vite"
+            "vue"
+            "vue-router"
+            "pinia"
+            "vue-i18n"
+            "@vitejs/plugin-vue"
+            "typescript"
+            "eslint"
+          )
+
+          # Dependencies that require Capacitor ecosystem compatibility
+          CAPACITOR_BLOCKED=(
+            "@capacitor/core"
+            "@capacitor/cli"
+            "@capacitor/android"
+            "@capacitor/ios"
+            "@capacitor/app"
+            "@capacitor/haptics"
+            "@capacitor/keyboard"
+            "@capacitor/status-bar"
+            "@capacitor/preferences"
+            "@capacitor/share"
+            "@capacitor/clipboard"
+            "@capacitor/browser"
+          )
+
+          LABEL="needs-review"
+
+          # Check if dependency is in blocked lists
+          for blocked in "${QUASAR_BLOCKED[@]}"; do
+            if [[ "$DEP_NAME" == *"$blocked"* ]]; then
+              LABEL="blocked-by-quasar"
+              echo "Dependency $DEP_NAME is blocked by Quasar compatibility"
+              break
+            fi
+          done
+
+          for blocked in "${CAPACITOR_BLOCKED[@]}"; do
+            if [[ "$DEP_NAME" == *"$blocked"* ]]; then
+              LABEL="blocked-by-quasar"
+              echo "Dependency $DEP_NAME is blocked by Capacitor ecosystem compatibility"
+              break
+            fi
+          done
+
+          echo "label=$LABEL" >> $GITHUB_OUTPUT
+
+      - name: Apply major version label
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' &&
+          steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: gh pr edit "$PR_URL" --add-label "$LABEL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          LABEL: ${{ steps.quasar-check.outputs.label }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

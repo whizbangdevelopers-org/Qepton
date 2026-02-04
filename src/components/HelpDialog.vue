@@ -137,12 +137,32 @@ const features = [
   {
     icon: 'star',
     title: 'Starred Gists',
-    description: 'Access your starred gists from GitHub'
+    description: 'Bookmark gists on GitHub (synced across devices)'
+  },
+  {
+    icon: 'push_pin',
+    title: 'Pinned Gists',
+    description: 'Quick access to frequently used gists (local only)'
+  },
+  {
+    icon: 'checklist',
+    title: 'Bulk Operations',
+    description: 'Star, unstar, pin, or unpin multiple gists at once from dashboard'
   },
   {
     icon: 'history',
     title: 'Version History',
     description: 'View and restore previous versions of gists'
+  },
+  {
+    icon: 'settings',
+    title: 'Customizable Navigation',
+    description: 'Show/hide sections in the navigation drawer via settings'
+  },
+  {
+    icon: 'system_update',
+    title: 'Auto Updates',
+    description: 'Desktop app checks for updates automatically (Help menu)'
   }
 ]
 
@@ -151,7 +171,10 @@ const tips = [
   'Pin frequently used tags for quick access',
   'Double-click a file to expand/collapse its content',
   'Use immersive mode for distraction-free viewing',
-  'Star important gists on GitHub for quick access'
+  'Star gists to save them on GitHub (syncs across devices), pin gists for quick local access',
+  'Use the dashboard to bulk star/pin multiple gists at once',
+  'Clear recent gists from the navigation drawer settings',
+  'Customize which sections appear in the navigation drawer via Settings'
 ]
 
 function handleClose() {

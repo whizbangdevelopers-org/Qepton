@@ -9,7 +9,19 @@
       <template v-slot:avatar>
         <q-icon name="system_update" />
       </template>
-      Update available: v{{ appVersion }} → v{{ uiStore.updateInfo?.version }}
+      <div>
+        Update available: v{{ appVersion }} → v{{ uiStore.updateInfo?.version }}
+        <q-btn
+          v-if="uiStore.updateInfo?.releaseNotes"
+          flat
+          dense
+          size="sm"
+          color="white"
+          label="What's New"
+          class="q-ml-sm"
+          @click="showReleaseNotes = true"
+        />
+      </div>
       <template v-slot:action>
         <q-btn
           flat
@@ -25,6 +37,25 @@
         />
       </template>
     </q-banner>
+
+    <!-- Release Notes Dialog -->
+    <q-dialog v-model="showReleaseNotes">
+      <q-card style="min-width: 400px; max-width: 600px;">
+        <q-card-section class="row items-center">
+          <div class="text-h6">What's New in v{{ uiStore.updateInfo?.version }}</div>
+          <q-space />
+          <q-btn icon="close" flat round dense @click="showReleaseNotes = false" />
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="release-notes-content">
+          <div v-html="formattedReleaseNotes"></div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Later" @click="showReleaseNotes = false" />
+          <q-btn color="primary" label="Install & Restart" @click="installUpdate" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Header (hidden in immersive mode) -->
     <q-header v-if="!uiStore.immersiveMode" elevated>
@@ -161,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useUIStore } from 'src/stores/ui'
 import { useGistsStore } from 'src/stores/gists'
@@ -187,14 +218,33 @@ const uiStore = useUIStore()
 const gistsStore = useGistsStore()
 
 const leftDrawerOpen = ref(true)
+const showReleaseNotes = ref(false)
 
 // App version and platform detection
 // eslint-disable-next-line no-undef
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'
 const isElectron = typeof window !== 'undefined' && 'electronAPI' in window
 
+// Format release notes (handle markdown-ish content from GitHub)
+const formattedReleaseNotes = computed(() => {
+  const notes = uiStore.updateInfo?.releaseNotes
+  if (!notes) return ''
+  // Basic markdown-like formatting
+  return notes
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^\* (.+)$/gm, '<li>$1</li>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/\n\n/g, '<br><br>')
+})
+
 // Install update (Electron only)
 function installUpdate() {
+  showReleaseNotes.value = false
   if (window.electronAPI) {
     window.electronAPI.quitAndInstall()
   }
@@ -307,5 +357,33 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 9999;
+}
+
+.release-notes-content {
+  max-height: 400px;
+  overflow-y: auto;
+
+  :deep(h2),
+  :deep(h3),
+  :deep(h4) {
+    margin: 0.5em 0;
+    color: var(--q-primary);
+  }
+
+  :deep(ul) {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+
+  :deep(li) {
+    margin: 0.25em 0;
+  }
+
+  :deep(code) {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-family: monospace;
+  }
 }
 </style>

@@ -30,11 +30,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Flatpak package via separate workflow (uploads to GitHub Releases)
 
-## [1.0.14] - 2026-01-15
+## [1.0.14] - 2026-02-03
 
 ### Added
+- **Pin/Unpin Gists** - Pin frequently used gists for quick local access (stored in localStorage)
+- **Star/Unstar Toggle** - Toggle star status directly from the gist detail panel
+- **Bulk Operations** - Star, unstar, pin, and unpin multiple gists at once from dashboard
+- **Navigation Drawer Settings** - Configure visibility of All Gists, Starred, Pinned, Recent, Languages, and Tags sections
+- **Clear Recent Gists** - Button to clear the recent gists list
+- **Check for Updates** - Manual update check from Help menu (Electron only)
+- **Release Notes Dialog** - View release notes before installing updates (Electron only)
 - Snap package via separate workflow (uploads to GitHub Releases)
 - Snap Store publishing support (requires SNAPCRAFT_STORE_CREDENTIALS secret)
+
+### Changed
+- Updated Help menu links from Lepton to Qepton repository
+- Updated Help dialog with documentation for all new features
+
+### Fixed
+- Recent gists not updating when viewing gists
+- Set serialization for localStorage persistence of pinned gists
+- UpdateInfo type mismatch between electron preload and store
+- Critical npm audit vulnerability
 
 ## [1.0.13] - 2026-01-29
 
