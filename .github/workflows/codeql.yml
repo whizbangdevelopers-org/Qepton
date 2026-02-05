@@ -34,7 +34,6 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # Use extended queries for more thorough analysis
           queries: security-extended,security-and-quality
 
       - name: Autobuild
