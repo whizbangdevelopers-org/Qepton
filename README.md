@@ -265,7 +265,7 @@ We test release artifacts on real hardware and VMs before publishing. This matri
 | Portable .7z  | Windows x64    | Win10 Laptop        | ⏳     | v1.0.12       |
 | DMG           | macOS arm64    | Mac Mini M1         | ⏳     | v1.0.12       |
 | DMG           | macOS x64      | —                   | ⏸️     | —             |
-| AppImage      | Linux x64      | Ubuntu Laptop       | ⏳     | v1.0.12       |
+| AppImage      | Linux x64      | Ubuntu Laptop       | ⏳     | v1.0.20       |
 | deb           | Debian/Ubuntu  | Ubuntu Laptop       | ⏳     | v1.0.12       |
 | snap          | Ubuntu         | Ubuntu Laptop       | ⏳     | v1.0.12       |
 | rpm           | Fedora         | Fedora VM (KVM)     | ⏳     | v1.0.12       |
