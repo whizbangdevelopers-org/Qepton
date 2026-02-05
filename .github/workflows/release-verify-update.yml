@@ -134,6 +134,11 @@ jobs:
                   updated_lines.append(line)
                   continue
 
+              # Skip header row and separator
+              if '---' in line or 'Status' in line or 'Last Verified' in line:
+                  updated_lines.append(line)
+                  continue
+
               # Check if this line matches any of our patterns
               matched = False
               for pattern in patterns:
@@ -141,7 +146,7 @@ jobs:
                       matched = True
                       break
 
-              if matched and '---' not in line:  # Skip header separator
+              if matched:  # Data row that matches our platform
                   # Parse the table row: | Format | Platform | Test Environment | Status | Last Verified |
                   cols = line.split('|')
                   if len(cols) >= 6:

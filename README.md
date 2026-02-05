@@ -259,22 +259,22 @@ cd e2e-docker
 We test release artifacts on real hardware and VMs before publishing. This matrix shows current verification status.
 
 <!-- VERIFICATION-TABLE-START -->
-| Format        | Platform       | Test Environment    | ✅     | v0.0.0-test   |
+| Format        | Platform       | Test Environment    | Status | Last Verified |
 | ------------- | -------------- | ------------------- | ------ | ------------- |
-| NSIS (.exe)   | Windows x64    | Win10 Laptop        | ✅     | v0.0.0-test   |
-| Portable .7z  | Windows x64    | Win10 Laptop        | ✅     | v0.0.0-test   |
-| DMG           | macOS arm64    | Mac Mini M1         | ✅     | v0.0.0-test   |
-| DMG           | macOS x64      | —                   | ✅✅     | v0.0.0-test   |
-| AppImage      | Linux x64      | Ubuntu Laptop       | ✅     | v0.0.0-test   |
-| deb           | Debian/Ubuntu  | Ubuntu Laptop       | ✅     | v0.0.0-test   |
-| snap          | Ubuntu         | Ubuntu Laptop       | ✅     | v0.0.0-test   |
-| rpm           | Fedora         | Fedora VM (KVM)     | ✅     | v0.0.0-test   |
-| Flatpak       | Linux          | Fedora VM (KVM)     | ✅     | v0.0.0-test   |
-| pacman        | Arch Linux     | Arch VM (KVM)       | ✅     | v0.0.0-test   |
-| Nix/NUR       | NixOS/Linux    | NixOS Laptop        | ✅     | v0.0.0-test   |
-| PWA           | Web            | GitHub Pages        | ✅     | v0.0.0-test   |
-| iOS           | Mobile         | —                   | ✅     | v0.0.0-test   |
-| Android       | Mobile         | —                   | ✅     | v0.0.0-test   |
+| NSIS (.exe)   | Windows x64    | Win10 Laptop        | ⏳     | —             |
+| Portable .7z  | Windows x64    | Win10 Laptop        | ⏳     | —             |
+| DMG           | macOS arm64    | Mac Mini M1         | ⏳     | —             |
+| DMG           | macOS x64      | —                   | ⏸️     | —             |
+| AppImage      | Linux x64      | Ubuntu Laptop       | ⏳     | —             |
+| deb           | Debian/Ubuntu  | Ubuntu Laptop       | ⏳     | —             |
+| snap          | Ubuntu         | Ubuntu Laptop       | ⏳     | —             |
+| rpm           | Fedora         | Fedora VM (KVM)     | ⏳     | —             |
+| Flatpak       | Linux          | Fedora VM (KVM)     | ⏳     | —             |
+| pacman        | Arch Linux     | Arch VM (KVM)       | ⏳     | —             |
+| Nix/NUR       | NixOS/Linux    | NixOS Laptop        | ⏳     | —             |
+| PWA           | Web            | GitHub Pages        | ✅     | v1.0.22       |
+| iOS           | Mobile         | —                   | 🔮     | —             |
+| Android       | Mobile         | —                   | 🔮     | —             |
 <!-- VERIFICATION-TABLE-END -->
 
 **Legend:** ✅ Verified | ⏳ Pending | ⏸️ Skipped | 🔮 Future
