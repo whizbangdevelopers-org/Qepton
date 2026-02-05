@@ -279,8 +279,6 @@ We test release artifacts on real hardware and VMs before publishing. This matri
 
 **Legend:** ✅ Verified | ⏳ Pending | ⏸️ Skipped | 🔮 Future
 
-See [Release Verification Issues](https://github.com/whizbangdevelopers-org/Qepton/issues?q=label%3Arelease-verify) for detailed test results per release.
-
 ## Contributing
 
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
