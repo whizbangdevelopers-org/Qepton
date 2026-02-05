@@ -101,7 +101,7 @@ jobs:
         if: steps.drift.outputs.drift_found == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_TOKEN }}  # PAT required - GITHUB_TOKEN can't create PRs
           commit-message: "chore(deps): align package.json constraints with installed versions"
           title: "chore(deps): align package.json constraints with installed versions"
           body: |
