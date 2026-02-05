@@ -394,6 +394,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Trigger verification issues
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "Triggering release-verify-create workflow for $TAG..."
+          gh workflow run release-verify-create.yml -f release_tag="$TAG"
+          echo "✅ Verification issue workflow triggered"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   update-nur:
     name: Update NUR Package
     needs: release-to-free  # Must run after assets are copied to free repo
