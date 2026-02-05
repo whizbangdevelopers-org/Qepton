@@ -1,11 +1,13 @@
 name: Add to Project
 
-# Auto-adds issues to GitHub Project and sets fields based on labels
+# Auto-adds issues and PRs to GitHub Project and sets fields based on labels
 # Requires: PROJECT_PAT secret with 'project' scope
 # Project URL format: https://github.com/orgs/whizbangdevelopers-org/projects/NUMBER
 
 on:
   issues:
+    types: [opened, labeled]
+  pull_request:
     types: [opened, labeled]
 
 env:
@@ -22,10 +24,22 @@ jobs:
           project-url: ${{ env.PROJECT_URL }}
           github-token: ${{ secrets.PROJECT_PAT }}
 
+      - name: Get labels
+        id: labels
+        run: |
+          # Handle both issues and PRs
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            echo "labels=${{ join(github.event.issue.labels.*.name, ',') }}" >> $GITHUB_OUTPUT
+            echo "title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+          else
+            echo "labels=${{ join(github.event.pull_request.labels.*.name, ',') }}" >> $GITHUB_OUTPUT
+            echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine Target field value
         id: target
         run: |
-          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+          LABELS="${{ steps.labels.outputs.labels }}"
 
           if echo "$LABELS" | grep -qi "premium"; then
             echo "value=Premium" >> $GITHUB_OUTPUT
@@ -40,8 +54,8 @@ jobs:
       - name: Determine Phase field value
         id: phase
         run: |
-          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
-          TITLE="${{ github.event.issue.title }}"
+          LABELS="${{ steps.labels.outputs.labels }}"
+          TITLE="${{ steps.labels.outputs.title }}"
 
           # Check labels and title for phase hints
           if echo "$LABELS" | grep -qi "packaging"; then
@@ -52,7 +66,7 @@ jobs:
             echo "value=5-Premium" >> $GITHUB_OUTPUT
           elif echo "$LABELS" | grep -qi "plugin"; then
             echo "value=6-Plugins" >> $GITHUB_OUTPUT
-          elif echo "$LABELS" | grep -qi "testing\|ci-cd"; then
+          elif echo "$LABELS" | grep -qi "testing\|ci-cd\|dependencies"; then
             echo "value=4-Platform" >> $GITHUB_OUTPUT
           else
             echo "value=3-Features" >> $GITHUB_OUTPUT
@@ -61,7 +75,7 @@ jobs:
       - name: Determine Effort field value
         id: effort
         run: |
-          LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+          LABELS="${{ steps.labels.outputs.labels }}"
 
           if echo "$LABELS" | grep -qi "effort-high\|high-effort"; then
             echo "value=High" >> $GITHUB_OUTPUT
