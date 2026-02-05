@@ -262,7 +262,7 @@ async function handleSync() {
       message: `Synced ${gistsStore.totalGists} gists`,
       icon: 'check_circle'
     })
-  } catch (error) {
+  } catch (_error) {
     $q.notify({
       type: 'negative',
       message: 'Sync failed. Please check your connection.',

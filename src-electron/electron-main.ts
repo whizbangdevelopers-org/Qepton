@@ -128,7 +128,7 @@ ipcMain.handle('open-oauth-window', async () => {
           authWindow.close()
           resolve(code)
         }
-      } catch (e) {
+      } catch (_e) {
         // URL parsing failed, ignore
       }
     })
@@ -142,7 +142,7 @@ ipcMain.handle('open-oauth-window', async () => {
           authWindow.close()
           resolve(code)
         }
-      } catch (e) {
+      } catch (_e) {
         // URL parsing failed, ignore
       }
     })

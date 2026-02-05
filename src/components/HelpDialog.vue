@@ -174,7 +174,8 @@ const tips = [
   'Star gists to save them on GitHub (syncs across devices), pin gists for quick local access',
   'Use the dashboard to bulk star/pin multiple gists at once',
   'Clear recent gists from the navigation drawer settings',
-  'Customize which sections appear in the navigation drawer via Settings'
+  'Customize which sections appear in the navigation drawer via Settings',
+  'Stuck in zoom? Press Escape to exit zoomed view'
 ]
 
 function handleClose() {

@@ -887,7 +887,7 @@ async function handleSync() {
       message: `Synced ${gistsStore.totalGists} gists`,
       icon: 'check_circle'
     })
-  } catch (error) {
+  } catch (_error) {
     $q.notify({
       type: 'negative',
       message: 'Sync failed. Please check your connection.',
@@ -911,7 +911,7 @@ async function handlePullToRefresh(done: () => void) {
       icon: 'check_circle',
       timeout: 1500
     })
-  } catch (error) {
+  } catch (_error) {
     $q.notify({
       type: 'negative',
       message: 'Sync failed. Please check your connection.',
