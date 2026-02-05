@@ -7,7 +7,6 @@ import { register } from 'register-service-worker'
 import { Notify } from 'quasar'
 
 // Get app version from build-time define
-// eslint-disable-next-line no-undef
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'
 
 /**
