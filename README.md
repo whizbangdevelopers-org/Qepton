@@ -281,7 +281,7 @@ We test release artifacts on real hardware and VMs before publishing. This matri
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) before submitting PRs.
 
 ## License
 
