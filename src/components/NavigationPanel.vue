@@ -331,6 +331,7 @@
 import { ref, computed } from 'vue'
 import { useGistsStore } from 'src/stores/gists'
 import { useUIStore } from 'src/stores/ui'
+import { useSearchStore } from 'src/stores/search'
 import { parseLangName } from 'src/services/parser'
 import UserPanel from './UserPanel.vue'
 
@@ -343,6 +344,7 @@ const TAG_COLORS = [
 
 const gistsStore = useGistsStore()
 const uiStore = useUIStore()
+const searchStore = useSearchStore()
 
 // Drag and drop state
 const draggedIndex = ref<number | null>(null)
@@ -360,6 +362,9 @@ const customTagsWithStarters = computed(() => gistsStore.customTagsWithStarters)
 // Methods
 function selectTag(tag: string) {
   gistsStore.setActiveTag(tag)
+  if (tag === 'All Gists') {
+    searchStore.setDateRangeFilter('all')
+  }
 }
 
 function formatTagName(tag: string): string {
