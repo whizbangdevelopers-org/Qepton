@@ -1,7 +1,6 @@
 {
   "appId": "com.whizbangdevelopers.qepton",
   "appName": "Qepton",
-  "bundledWebRuntime": false,
   "webDir": "../dist/capacitor",
   "plugins": {
     "SplashScreen": {
