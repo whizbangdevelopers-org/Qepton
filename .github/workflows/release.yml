@@ -9,6 +9,9 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
     permissions:
       contents: write
     strategy:
@@ -33,8 +36,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
 
       - name: Install dependencies
         run: npm install
@@ -105,12 +109,12 @@ jobs:
         with:
           name: linux-builds
           path: |
-            dist/electron/Packaged/*.AppImage
-            dist/electron/Packaged/*.snap
-            dist/electron/Packaged/*.deb
-            dist/electron/Packaged/*.pacman
-            dist/electron/Packaged/*.rpm
-            dist/electron/Packaged/latest-linux.yml
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.AppImage
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.snap
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.deb
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.pacman
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.rpm
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/latest-linux.yml
           retention-days: 5
 
       - name: Upload macOS artifacts
@@ -119,9 +123,9 @@ jobs:
         with:
           name: mac-builds
           path: |
-            dist/electron/Packaged/*.dmg
-            dist/electron/Packaged/*.zip
-            dist/electron/Packaged/latest-mac.yml
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.dmg
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.zip
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/latest-mac.yml
           retention-days: 5
 
       - name: Upload Windows artifacts
@@ -130,9 +134,9 @@ jobs:
         with:
           name: win-builds
           path: |
-            dist/electron/Packaged/*.exe
-            dist/electron/Packaged/*.7z
-            dist/electron/Packaged/latest.yml
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.exe
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/*.7z
+            ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/electron/Packaged/latest.yml
           retention-days: 5
 
   # ==========================================================================
@@ -195,6 +199,9 @@ jobs:
     needs: build
     # When enabling pacman build, change to: needs: [build, build-pacman]
     runs-on: ubuntu-latest
+    # NO working-directory: this job builds nothing. It downloads artifacts to the WORKSPACE
+    # root and reads them back with `ls -R artifacts`, so pointing it at the app subtree
+    # would look for code/Qepton-Dev/artifacts and find nothing.
     permissions:
       contents: write
 
@@ -352,6 +359,9 @@ jobs:
     name: Publish Release
     needs: release
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
     permissions:
       contents: write
 
@@ -528,9 +538,12 @@ jobs:
           SYNC_BRANCH="release-${VERSION}"
           git checkout -b "$SYNC_BRANCH"
 
-          # Copy files from Dev (excluding dev-only)
+          # Copy files from Dev (excluding dev-only). Two rsyncs, same reason as
+          # sync-to-free.yml: the app lives at code/Qepton-Dev/ and the workflows at .github/,
+          # and business/, plans/, forge/ and MASTER-PLAN.md must never reach a public repo.
           rsync -av --delete \
             --exclude='.git' \
+            --exclude='.github' \
             --exclude='scripts/release-to.sh' \
             --exclude='scripts/sync-issues.sh' \
             --exclude='.githooks/' \
@@ -549,14 +562,17 @@ jobs:
             --exclude='CLAUDE.md' \
             --exclude='TESTING.md' \
             --exclude='DEVELOPMENT.md' \
-            --exclude='.github/workflows/snap.yml' \
-            --exclude='.github/workflows/test.yml' \
-            --exclude='.github/workflows/sync-to-free.yml' \
-            --exclude='.github/workflows/dependabot-labeler.yml' \
-            --exclude='.github/workflows/dependabot-tracker.yml' \
-            --exclude='.github/dependabot.yml' \
-            --exclude='.github/issue-mapping.json' \
-            "$GITHUB_WORKSPACE/" ./
+            "$GITHUB_WORKSPACE/code/Qepton-Dev/" ./
+
+          rsync -av --delete \
+            --exclude='workflows/snap.yml' \
+            --exclude='workflows/test.yml' \
+            --exclude='workflows/sync-to-free.yml' \
+            --exclude='workflows/dependabot-labeler.yml' \
+            --exclude='workflows/dependabot-tracker.yml' \
+            --exclude='dependabot.yml' \
+            --exclude='issue-mapping.json' \
+            "$GITHUB_WORKSPACE/.github/" ./.github/
 
           # Patch quasar.config.cjs for Free repo
           if [[ -f quasar.config.cjs ]]; then

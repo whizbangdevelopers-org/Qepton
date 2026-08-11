@@ -15,14 +15,18 @@ jobs:
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
 
       - name: Install dependencies
         run: npm ci

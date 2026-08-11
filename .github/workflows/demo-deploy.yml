@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
     paths:
+      # Dev layout (app under code/Qepton-Dev/) …
+      - 'code/Qepton-Dev/src/**'
+      - 'code/Qepton-Dev/public/**'
+      - 'code/Qepton-Dev/package.json'
+      - 'code/Qepton-Dev/quasar.config.cjs'
+      # … and the Free mirror, which receives that subtree flattened to its root.
+      # paths filters cannot take expressions, so both spellings are listed; the filter is an OR.
       - 'src/**'
       - 'public/**'
       - 'package.json'
@@ -14,15 +21,34 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
     steps:
       - name: Checkout Qepton-Dev
         uses: actions/checkout@v4
+        with:
+          # DETACHED HEAD, deliberately. github-pages-deploy-action deploys to the demo repo's
+          # `main`, and it does that by running `git checkout -B main origin/main` inside a
+          # worktree of THIS checkout. If this checkout is itself on a local branch named `main`,
+          # git refuses — "fatal: 'main' is already used by worktree" — because one branch cannot
+          # be checked out in two worktrees.
+          #
+          # The action survives that, but badly: its fallback runs `git checkout -B temp-<ts>
+          # origin/main` against the SOURCE working tree rather than the temp deployment worktree,
+          # and the commit it then force-pushes is assembled from that confused state. The push is
+          # rejected server-side with `remote: fatal error in commit_refs`.
+          #
+          # Checking out the SHA instead of the branch leaves no local `main`, so the action takes
+          # its normal path and never enters the fallback.
+          ref: ${{ github.sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: '24'
           cache: npm
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
 
       - name: Install dependencies
         run: npm ci
@@ -48,7 +74,7 @@ jobs:
           token: ${{ secrets.DEMO_GITHUB_TOKEN }}
           repository-name: qepton-demo/qepton-demo.github.io
           branch: main
-          folder: dist/spa
+          folder: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}dist/spa
           clean-exclude: README.md
           commit-message: "Deploy demo app - ${{ github.sha }}"
 

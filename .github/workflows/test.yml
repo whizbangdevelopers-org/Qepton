@@ -1,0 +1,131 @@
+name: Tests
+
+# Push trigger disabled on private Dev repo — saves CI minutes. Pre-push hook covers main.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run unit tests with JSON reporter
+        id: vitest
+        run: |
+          npm run test:unit:run -- --reporter=json --outputFile=test-results.json || true
+
+          # Extract test counts from JSON output
+          if [[ -f test-results.json ]]; then
+            PASSED=$(jq '[.testResults[].assertionResults[] | select(.status == "passed")] | length' test-results.json)
+            FAILED=$(jq '[.testResults[].assertionResults[] | select(.status == "failed")] | length' test-results.json)
+            TOTAL=$((PASSED + FAILED))
+
+            echo "passed=$PASSED" >> $GITHUB_OUTPUT
+            echo "failed=$FAILED" >> $GITHUB_OUTPUT
+            echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+            echo "Unit tests: $PASSED passed, $FAILED failed, $TOTAL total"
+          fi
+
+          # Fail if tests failed
+          if [[ "$FAILED" -gt 0 ]]; then
+            exit 1
+          fi
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Update unit test badge
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ secrets.TEST_BADGE_GIST_ID }}
+          filename: vitest-badge.json
+          label: unit tests
+          message: "${{ steps.vitest.outputs.passed }} passed"
+          color: ${{ steps.vitest.outputs.failed == '0' && 'brightgreen' || 'red' }}
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/' || '' }}coverage/
+          retention-days: 30
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev' || '.' }}
+    needs: [unit-tests, lint]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: ${{ github.repository == 'whizbangdevelopers-org/Qepton-Dev' && 'code/Qepton-Dev/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build SPA
+        run: npm run build
+
+      - name: Build PWA
+        run: npm run build:pwa
+
+      - name: Validate PWA API endpoints
+        run: bash scripts/validate-pwa-api.sh dist/pwa

@@ -24,8 +24,11 @@ MODERATE=$(echo "$AUDIT_JSON" | jq '.metadata.vulnerabilities.moderate // 0')
 LOW=$(echo "$AUDIT_JSON" | jq '.metadata.vulnerabilities.low // 0')
 TOTAL=$(echo "$AUDIT_JSON" | jq '.metadata.vulnerabilities.total // 0')
 
-# Generate report
-cat > "$OUTPUT_FILE" << EOF
+# Generate report.
+# The body is MEANT to expand: every $( ) produces report content (timestamp, package
+# name/version) and every $VAR is a count computed above. A quoted delimiter would emit the
+# literal text "$(date …)" into the report instead of a date.
+cat > "$OUTPUT_FILE" << EOF # shell-safety-ok: report generator, the body must expand
 # Security Audit Report (Auto-generated)
 
 **Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
