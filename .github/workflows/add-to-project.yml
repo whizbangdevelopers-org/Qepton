@@ -26,20 +26,40 @@ jobs:
 
       - name: Get labels
         id: labels
+        # Titles are attacker-controlled — this workflow runs on `issues: [opened]`, so anyone who
+        # can file an issue supplies them. Interpolating them into the script with `${{ }}` put
+        # that text into the shell source itself, where `$(...)` or a quote executes.
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          # Handle both issues and PRs
+          # Handle both issues and PRs. github.event_name is a fixed GitHub-supplied value.
           if [ "${{ github.event_name }}" = "issues" ]; then
-            echo "labels=${{ join(github.event.issue.labels.*.name, ',') }}" >> $GITHUB_OUTPUT
-            echo "title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+            TITLE="$ISSUE_TITLE"
+            LABELS="$ISSUE_LABELS"
           else
-            echo "labels=${{ join(github.event.pull_request.labels.*.name, ',') }}" >> $GITHUB_OUTPUT
-            echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            TITLE="$PR_TITLE"
+            LABELS="$PR_LABELS"
           fi
+
+          # A multi-line title would otherwise inject extra keys into GITHUB_OUTPUT — the second
+          # half of the same vulnerability. The heredoc delimiter is randomised so it cannot be
+          # closed early by a title that contains the delimiter text.
+          DELIM="GHA_$(openssl rand -hex 8 2>/dev/null || echo "${RANDOM}${RANDOM}")"
+          {
+            echo "labels=${LABELS}"
+            echo "title<<${DELIM}"
+            echo "${TITLE}"
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Determine Target field value
         id: target
+        env:
+          LABELS: ${{ steps.labels.outputs.labels }}
         run: |
-          LABELS="${{ steps.labels.outputs.labels }}"
 
           if echo "$LABELS" | grep -qi "premium"; then
             echo "value=Premium" >> $GITHUB_OUTPUT
@@ -53,9 +73,11 @@ jobs:
 
       - name: Determine Phase field value
         id: phase
+        env:
+          # Same taint, one step later: this value IS the issue title.
+          LABELS: ${{ steps.labels.outputs.labels }}
+          TITLE: ${{ steps.labels.outputs.title }}
         run: |
-          LABELS="${{ steps.labels.outputs.labels }}"
-          TITLE="${{ steps.labels.outputs.title }}"
 
           # Check labels and title for phase hints
           if echo "$LABELS" | grep -qi "packaging"; then
@@ -74,8 +96,9 @@ jobs:
 
       - name: Determine Effort field value
         id: effort
+        env:
+          LABELS: ${{ steps.labels.outputs.labels }}
         run: |
-          LABELS="${{ steps.labels.outputs.labels }}"
 
           if echo "$LABELS" | grep -qi "effort-high\|high-effort"; then
             echo "value=High" >> $GITHUB_OUTPUT
