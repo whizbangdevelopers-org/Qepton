@@ -3,7 +3,7 @@
  * Import stores from this file for consistency
  */
 
-import { store } from 'quasar/wrappers'
+import { defineStore as defineQuasarStore } from '#q-app'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 
@@ -24,7 +24,7 @@ export type {
 } from 'src/types/store'
 
 // Quasar requires a default export for the store feature
-export default store((/* { ssrContext } */) => {
+export default defineQuasarStore((/* { ssrContext } */) => {
   const pinia = createPinia()
   pinia.use(piniaPluginPersistedstate)
   return pinia

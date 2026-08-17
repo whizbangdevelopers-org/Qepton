@@ -279,6 +279,6 @@ export const useAuthStore = defineStore('auth', {
 
   // Persist auth state - include isAuthenticated and user for immediate restore
   persist: {
-    paths: ['accessToken', 'isAuthenticated', 'user', 'isDemoMode', 'demoUsername']
+    pick: ['accessToken', 'isAuthenticated', 'user', 'isDemoMode', 'demoUsername']
   }
 })
