@@ -938,7 +938,7 @@ export const useGistsStore = defineStore('gists', {
 
   // Persist certain state
   persist: {
-    paths: ['pinnedTags', 'pinnedGistIds', 'lastSyncTime', 'activeTag', 'recentGists'],
+    pick: ['pinnedTags', 'pinnedGistIds', 'lastSyncTime', 'activeTag', 'recentGists'],
     serializer: {
       serialize: (state) => {
         // Convert Sets to arrays for JSON serialization

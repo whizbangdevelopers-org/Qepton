@@ -3,11 +3,11 @@
  * Initializes theme and restores auth session on app startup
  */
 
-import { boot } from 'quasar/wrappers'
+import { defineBoot } from '#q-app'
 import { themeService } from 'src/services/theme'
 import { useAuthStore } from 'src/stores/auth'
 
-export default boot(async () => {
+export default defineBoot(async () => {
   console.debug('[Boot] Initializing app...')
 
   // Initialize theme service

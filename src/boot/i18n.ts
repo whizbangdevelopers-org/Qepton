@@ -1,4 +1,4 @@
-import { boot } from 'quasar/wrappers'
+import { defineBoot } from '#q-app'
 import { createI18n } from 'vue-i18n'
 
 import messages from 'src/i18n'
@@ -19,7 +19,7 @@ declare module 'vue-i18n' {
   export interface DefineNumberFormat {}
 }
 
-export default boot(({ app }) => {
+export default defineBoot(({ app }) => {
   const i18n = createI18n({
     locale: 'en-US',
     legacy: false,

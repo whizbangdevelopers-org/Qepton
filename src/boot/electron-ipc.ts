@@ -4,12 +4,12 @@
  * Only active when running in Electron environment
  */
 
-import { boot } from 'quasar/wrappers'
+import { defineBoot } from '#q-app'
 import { Notify } from 'quasar'
 import { useUIStore } from 'src/stores/ui'
 import { useGistsStore } from 'src/stores/gists'
 
-export default boot(() => {
+export default defineBoot(() => {
   // Only run in Electron environment
   if (!window.electronAPI) {
     console.debug('[Electron IPC] Not running in Electron, skipping setup')

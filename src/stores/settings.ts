@@ -177,6 +177,6 @@ export const useSettingsStore = defineStore('settings', {
   },
 
   persist: {
-    paths: ['syncEnabled', 'lastSyncTime']
+    pick: ['syncEnabled', 'lastSyncTime']
   }
 })

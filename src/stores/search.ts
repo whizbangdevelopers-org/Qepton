@@ -291,6 +291,6 @@ export const useSearchStore = defineStore('search', {
   },
 
   persist: {
-    paths: ['savedSearches', 'filters']
+    pick: ['savedSearches', 'filters']
   }
 })

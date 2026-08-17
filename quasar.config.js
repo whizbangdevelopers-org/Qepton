@@ -3,13 +3,18 @@
 // Configuration for Quasar app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
 
-const { readFileSync } = require('fs')
-const { join } = require('path')
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// app-vite 3 loads only quasar.config.js (ESM) or .ts; the .cjs form is not recognised
+// at all and is reported as "not a Quasar project folder".
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // Read package.json version
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'))
 
-module.exports = function (ctx) {
+export default function (ctx) {
   return {
     // TypeScript is auto-detected in @quasar/app-vite v2
 
@@ -264,7 +269,7 @@ module.exports = function (ctx) {
         publish: [{
           provider: 'github',
           owner: 'whizbangdevelopers',
-          repo: 'Qepton',
+          repo: 'Qepton-Dev',
           releaseType: 'release'
         }]
       }

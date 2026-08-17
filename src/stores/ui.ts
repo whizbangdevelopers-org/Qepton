@@ -370,6 +370,6 @@ export const useUIStore = defineStore('ui', {
 
   // Persist UI preferences
   persist: {
-    paths: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort', 'tagColors', 'showTagColors', 'bulkOperationsEnabled', 'showKeyboardFocus']
+    pick: ['immersiveMode', 'expandedFiles', 'navDrawers', 'gistListView', 'gistSort', 'tagColors', 'showTagColors', 'bulkOperationsEnabled', 'showKeyboardFocus']
   }
 })
