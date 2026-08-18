@@ -27,14 +27,17 @@
     "test:coverage": "vitest run --coverage",
     "test:security": "npm audit --audit-level=high",
     "test:precommit": "npm run lint && npm run typecheck && npm run test:unit:run",
-    "test:prepush": "npm run test:precommit && npm run build && npm run test:security && npm run audit:command-cwd && npm run audit:shell-safety && npm run audit:push-gates",
+    "test:prepush": "npm run test:precommit && npm run build && npm run test:security && npm run audit:command-cwd && npm run audit:shell-safety && npm run audit:push-gates && npm run audit:vite-aliases && npm run audit:ownership",
     "test:all": "npm run lint && npm run typecheck && npm run test:unit:run && npm run test:security && npm run build",
     "security:report": "bash scripts/security-audit.sh",
     "validate:pwa": "bash scripts/validate-pwa-api.sh",
     "clean": "rm -rf node_modules/.vite .quasar .q-cache 2>/dev/null; echo 'Cleared caches'",
     "audit:command-cwd": "npx tsx scripts/verify-command-cwd.ts",
     "audit:shell-safety": "npx tsx scripts/verify-shell-safety.ts",
-    "audit:push-gates": "npx tsx scripts/verify-push-gates.ts"
+    "audit:push-gates": "npx tsx scripts/verify-push-gates.ts",
+    "audit:vite-aliases": "npx tsx scripts/verify-vite-aliases.ts",
+    "provision:ownership": "node scripts/provision-ownership.js",
+    "audit:ownership": "node scripts/provision-ownership.js --check"
   },
   "dependencies": {
     "@codemirror/lang-angular": "^0.1.4",
@@ -105,6 +108,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.16",
     "@vue/test-utils": "^2.4.3",
+    "baseline-browser-mapping": "^2.11.15",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.2",
