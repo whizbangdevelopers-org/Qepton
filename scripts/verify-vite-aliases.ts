@@ -81,11 +81,12 @@ const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
  * ("process.env is not defined") contains it too. Template literals are deliberately NOT stripped,
  * because `${process.env.X}` inside one is a real read.
  *
- * @param {Array<{name: string, text: string}>} files  client source files
- * @returns {Array<{file: string, line: number, text: string}>}
+ * @param files client source files
  */
-export function findProcessEnvInClient(files) {
-  const hits = []
+export function findProcessEnvInClient(
+  files: Array<{ name: string; text: string }>,
+): Array<{ file: string; line: number; text: string }> {
+  const hits: Array<{ file: string; line: number; text: string }> = []
 
   for (const f of files) {
     const lines = f.text.split('\n')
