@@ -31,7 +31,8 @@
  * SELF-TEST
  * ---------
  * `--self-test` proves the parser and the derivation can fail in both directions, and prints the
- * FORGE-41 contract line. The IGNORE half is the load-bearing one here: the derivation reads
+ * machine-readable contract line (`auditor-contract: catch=<n> ignore=<n>`) that the
+ * auditor-contract checker reads, so both halves are visible rather than merely asserted. The IGNORE half is the load-bearing one here: the derivation reads
  * JSONC, because a tsconfig may legitimately carry comments, and a comment stripper that also
  * eats `//` inside a string value corrupts real config silently. A checker that mangles valid
  * input gets switched off, after which it catches nothing at all.
