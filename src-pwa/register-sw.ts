@@ -22,7 +22,12 @@ function isLoginPage(): boolean {
 // events pass a ServiceWorkerRegistration instance in their arguments.
 // ServiceWorkerRegistration: https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration
 
-register(process.env.SERVICE_WORKER_FILE || '', {
+// `import.meta.env.QUASAR_SERVICE_WORKER_FILE`, not `import.meta.env.QUASAR_SERVICE_WORKER_FILE`. The
+// latter is the app-vite 2 form: undefined in a v3 build (so the service worker registers against
+// an empty path) and fatal in the v3 dev server, where `process` does not exist at all. Verified
+// against the installed package — quasar-config-file.js defines this key and templates/pwa/ts
+// registers with it.
+register(import.meta.env.QUASAR_SERVICE_WORKER_FILE, {
   // The registrationOptions object will be passed as the second argument
   // to ServiceWorkerContainer.register()
   // https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerContainer/register#Parameter
