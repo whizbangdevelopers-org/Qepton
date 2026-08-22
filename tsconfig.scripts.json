@@ -1,0 +1,26 @@
+// Typecheck for scripts/ — the auditors and build tooling.
+//
+// tsconfig.json includes only src/** (plus the src-* variants), and tsx — which runs these —
+// strips types without checking them. So until this config existed, nothing typechecked them.
+//
+// Separate from tsconfig.json rather than folded into it, because these run under tsx as Node
+// ESM: they import each other with explicit .ts extensions, and they have no DOM. Adding them to
+// the Vue config would mean checking them against the wrong environment and paying for it on
+// every frontend typecheck.
+//
+// Mirrors code/tsconfig.scripts.json in Weaver, the template and Gantry. Qepton's four scripts
+// were already clean when the gate was added — which is the argument FOR adding it, not against:
+// an ungated surface is clean until the first edit nobody checks.
+//
+// No `codebase-mcp/src` entry: Qepton-Dev has no codebase-mcp server. Add one here if it gains one.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // tsx resolves `./x.ts` directly; the frontend's bundler resolution forbids the extension.
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2022"],
+    "jsx": "react-jsx"
+  },
+  "include": ["scripts/**/*.ts"]
+}

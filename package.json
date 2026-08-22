@@ -26,7 +26,7 @@
     "test:unit:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:security": "npm audit --audit-level=high",
-    "test:precommit": "npm run lint && npm run typecheck && npm run test:unit:run",
+    "test:precommit": "npm run lint && npm run typecheck && npm run typecheck:scripts && npm run test:unit:run",
     "test:prepush": "npm run test:precommit && npm run build && npm run test:security && npm run audit:command-cwd && npm run audit:shell-safety && npm run audit:push-gates && npm run audit:vite-aliases && npm run audit:ownership",
     "test:all": "npm run lint && npm run typecheck && npm run test:unit:run && npm run test:security && npm run build",
     "security:report": "bash scripts/security-audit.sh",
@@ -37,7 +37,8 @@
     "audit:push-gates": "npx tsx scripts/verify-push-gates.ts",
     "audit:vite-aliases": "npx tsx scripts/verify-vite-aliases.ts",
     "provision:ownership": "node scripts/provision-ownership.js",
-    "audit:ownership": "node scripts/provision-ownership.js --check"
+    "audit:ownership": "node scripts/provision-ownership.js --check",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
     "@codemirror/lang-angular": "^0.1.4",
