@@ -58,6 +58,7 @@ const NAMESPACED = /\b[a-z][a-z0-9]*:[a-z0-9:_-]+\b/g
 const BARE = /\b(?:build|lint|typecheck|format)\b/g
 const NPM_RUN = /\bnpm\b[^\n]*\brun\b/
 const IS_BUILD = /^build(:|$)/
+const IS_TYPECHECK_SCRIPTS = /^typecheck:scripts$/
 
 export type Scripts = Record<string, string>
 
@@ -91,6 +92,25 @@ export function gatesBuild(start: string[], scripts: Scripts): boolean {
   return [...reachable(start, scripts)].some((n) => IS_BUILD.test(n))
 }
 
+/**
+ * Pure: does anything reachable from `start` typecheck scripts/ and codebase-mcp/?
+ *
+ * CONDITIONAL, and deliberately so: it is only an invariant for a repo that DEFINES
+ * `typecheck:scripts`. A repo without one is not in violation, it simply has no such surface —
+ * and a rule that fires on a repo which cannot satisfy it gets switched off, after which it
+ * catches nothing at all.
+ *
+ * Added 2026-08-22, from a live instance of exactly the failure this file's docblock describes.
+ * `typecheck:scripts` was added to `test:precommit` in four repos on one day. In two of them no
+ * hook invoked `test:precommit` at all, so the new gate ran zero times while every reasonable
+ * predicate about it ("is it in the chain?") answered yes. The build half of this auditor had
+ * already been bitten twice by that shape; this is the third.
+ */
+export function gatesTypecheckScripts(start: string[], scripts: Scripts): boolean {
+  if (!('typecheck:scripts' in scripts)) return true
+  return [...reachable(start, scripts)].some((n) => IS_TYPECHECK_SCRIPTS.test(n))
+}
+
 // ── Self-test ───────────────────────────────────────────────────────────────────────────────────
 // The IGNORE half matters as much as the CATCH half: a gate auditor that fires on a correctly
 // gated repo gets deleted, after which it catches nothing at all.
@@ -98,7 +118,8 @@ const SCRIPTS: Scripts = {
   build: 'quasar build -m pwa',
   'build:all': 'npm run build && npm run build:backend',
   'build:backend': 'npm --prefix backend run build',
-  'test:precommit': 'npm run lint && npm run typecheck',
+  'test:precommit': 'npm run lint && npm run typecheck && npm run typecheck:scripts',
+  'typecheck:scripts': 'tsc -p tsconfig.scripts.json',
   'test:security': 'npm audit --audit-level=high',
   'test:compliance': 'npm run audit:sast && npm run audit:command-cwd',
   'test:prepush': 'npm run test:precommit && npm run build:all && npm run test:security',
@@ -115,6 +136,20 @@ const MUST_CATCH: [string, string][] = [
   ['header NAMES build:all, body never runs it', '#!/usr/bin/env bash\n# gates: test:precommit, build:all, test:security\nnpm run test:compliance\n'],
   ['reaches a script that stops short of the build', '#!/usr/bin/env bash\nnpm run test:precommit\n'],
 ]
+// The typecheck:scripts half. Same populations, different predicate — a hook can gate the build
+// perfectly and still never typecheck the auditors that gate everything else.
+const MUST_CATCH_TS: [string, string][] = [
+  ['gates compliance + security + build, never the type chain', '#!/usr/bin/env bash\nnpm run test:compliance\nnpm run test:security\nnpm run build:all\n'],
+  ['invokes named checks individually and omits this one', '#!/usr/bin/env bash\nnpm run lint\nnpm run typecheck\nnpm run build\n'],
+  ['a hook that only builds', '#!/usr/bin/env bash\nnpm run build:all\n'],
+]
+const MUST_IGNORE_TS: [string, string][] = [
+  ['reaches it via test:precommit', '#!/usr/bin/env bash\nnpm run test:precommit\nnpm run build:all\n'],
+  ['reaches it via test:prepush', '#!/usr/bin/env bash\nnpm run test:prepush\n'],
+  ['invokes typecheck:scripts directly', '#!/usr/bin/env bash\nnpm run typecheck:scripts\nnpm run build:all\n'],
+  ['a runner function taking it as an argument', '#!/usr/bin/env bash\nrun_check "types" "npm --prefix /abs run typecheck:scripts"\nrun_gate "2/2" build:all\n'],
+]
+
 const MUST_IGNORE: [string, string][] = [
   ['direct npm run build:all', '#!/usr/bin/env bash\nnpm run test:compliance\nnpm run build:all\n'],
   ['bare `build` on an npm run line', '#!/usr/bin/env bash\nnpm --prefix /abs/code run build\n'],
@@ -130,6 +165,15 @@ function selfTest(): string[] {
   for (const [name, hook] of MUST_IGNORE) {
     if (!gatesBuild(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST IGNORE but flagged: ${name}`)
   }
+  for (const [name, hook] of MUST_CATCH_TS) {
+    if (gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST CATCH (ts) but passed: ${name}`)
+  }
+  for (const [name, hook] of MUST_IGNORE_TS) {
+    if (!gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST IGNORE (ts) but flagged: ${name}`)
+  }
+  // A repo with no such script must never be flagged — the conditional half of the invariant.
+  const noTs: Scripts = { build: 'quasar build', lint: 'eslint .' }
+  if (!gatesTypecheckScripts(['lint'], noTs)) fails.push('MUST IGNORE (ts): repo that defines no typecheck:scripts')
   return fails
 }
 
@@ -144,7 +188,11 @@ function main(): number {
     for (const f of fails) console.error(`    ${f}`)
     return 1
   }
-  console.log(`  \x1b[32m✓\x1b[0m self-test: ${MUST_CATCH.length} catch + ${MUST_IGNORE.length} ignore cases`)
+  const nCatch = MUST_CATCH.length + MUST_CATCH_TS.length
+  const nIgnore = MUST_IGNORE.length + MUST_IGNORE_TS.length + 1
+  console.log(`  \x1b[32m✓\x1b[0m self-test: ${nCatch} catch + ${nIgnore} ignore cases`)
+  // audit:auditor-contracts reads this line to see BOTH halves rather than trust they exist.
+  console.log(`  auditor-contract: catch=${nCatch} ignore=${nIgnore}`)
 
   const scripts: Scripts = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf-8')).scripts ?? {}
   const problems: string[] = []
@@ -163,6 +211,15 @@ function main(): number {
       )
     } else {
       console.log(`  \x1b[32m✓\x1b[0m pre-push hook reaches the build via [${entry.join(', ')}]`)
+    }
+    if (entry.length && !gatesTypecheckScripts(entry, scripts)) {
+      problems.push(
+        `${relative(REPO, HOOK)} runs [${entry.join(', ')}] — none of which reaches \`typecheck:scripts\`,\n` +
+          '      which this package defines. scripts/ is run by tsx, which strips types without\n' +
+          '      checking them, so nothing would type it on a push.'
+      )
+    } else if (entry.length && 'typecheck:scripts' in scripts) {
+      console.log('  \x1b[32m✓\x1b[0m pre-push hook reaches typecheck:scripts')
     }
   }
 
