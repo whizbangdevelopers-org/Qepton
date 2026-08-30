@@ -144,6 +144,21 @@ const ANCHORS = [
   /cd\s+\//,                        // an absolute cd anywhere earlier
 ]
 
+
+/**
+ * Per-line suppression, with a MANDATORY reason: `cwd-ignore: <why>`.
+ *
+ * The case it exists for: a self-test CORPUS. `hooks/lib/unwrap-interpreter.sh` holds literal
+ * strings like `'bash -c "npm run build"'` because an unpinned command is the thing under test —
+ * pinning them would delete the test. Rewording input until a checker goes quiet is gaming it, so
+ * the escape is the same one `audit:sast` uses: a suppression that will not parse without a
+ * stated reason, leaving the intent in the diff for a reviewer.
+ *
+ * `\S` after the colon is what makes the reason mandatory — a bare `cwd-ignore:` does not match
+ * and does not suppress. Paired self-test cases hold that line.
+ */
+const CWD_IGNORE = /cwd-ignore:\s*\S/
+
 export interface Finding { file: string; line: number; text: string; kind: 'npm' | 'git' | 'source' }
 
 /** Pure: given a file's contents, which lines invoke npm/git/source cwd-dependently? */
@@ -159,6 +174,8 @@ export function findCwdDependentCommands(content: string, path = ''): Finding[] 
   lines.forEach((raw, i) => {
     const line = raw.replace(/#.*$/, '')            // strip trailing comments
     if (!line.trim() || /^\s*#/.test(raw)) return
+    // Read the RAW line: the suppression lives in the trailing comment that was just stripped.
+    if (CWD_IGNORE.test(raw)) return
     const npmPinned = NPM_PINNED.test(line) || (rootDerived && NPM_PINNED_VAR.test(line))
     const npmInvoked = NPM_CMD.test(line) || (!PROSE_CMD.test(line) && NPM_EMBEDDED.test(line))
     if (npmInvoked && NPM_OP.test(line) && !npmPinned) {
@@ -184,6 +201,7 @@ export function findCwdDependentCommands(content: string, path = ''): Finding[] 
  * MUST NOT flag — a checker that flags everything is as broken as one that flags nothing.
  */
 const MUST_CATCH: [string, string, string?][] = [
+  ['bare cwd-ignore does not suppress', 'npm run build  # cwd-ignore:'],
   ['bare npm run', 'npm run build\n'],
   ['relative --prefix', 'npm --prefix code run build\n'],
   ['bare npm ci', '  npm ci\n'],
@@ -206,6 +224,7 @@ const MUST_CATCH: [string, string, string?][] = [
   ['relative source, redirect masked', '. tools/env.sh >/dev/null 2>&1\n'],
 ]
 const MUST_IGNORE: [string, string, string?][] = [
+  ['cwd-ignore WITH a reason suppresses', 'npm run build  # cwd-ignore: self-test corpus, the unpinned command IS the fixture'],
   ['absolute --prefix', 'npm --prefix /abs/pkg run build\n'],
   // The three correct hook shapes in the portfolio. Flagging any of these would make the rule fire
   // on the very pattern it asks for, and a rule that does that gets deleted. The first is THIS
@@ -254,7 +273,9 @@ function main(): void {
     fails.forEach(f => console.log(`    ${f}`))
     process.exit(1)
   }
-  console.log(`  \x1b[32m✓\x1b[0m self-test: ${MUST_CATCH.length} catch + ${MUST_IGNORE.length} ignore cases\n`)
+  console.log(`  \x1b[32m✓\x1b[0m self-test: ${MUST_CATCH.length} catch + ${MUST_IGNORE.length} ignore cases`)
+  // audit:auditor-contracts reads this line to see BOTH halves rather than trust they exist.
+  console.log(`  auditor-contract: catch=${MUST_CATCH.length} ignore=${MUST_IGNORE.length}\n`)
 
   // Selection is by extension OR shebang. `'*.sh'` alone silently excluded every git hook —
   // they are named `pre-push` / `pre-commit` — which is how a hook whose every line was broken
