@@ -1,0 +1,42 @@
+# Files this repo holds in common with quasar-project-template, checked by
+# audit:template-divergence. One line per path; # comments and blanks ignored.
+#
+# THIS REPO IS A MULTI-PRODUCT MONOREPO, and that is why it was not onboarded until 2026-08-30.
+# `code/` holds six sibling products — Qepton, Qepton-Dev, Qepton-Plugins, Qepton-Plugins-Premium,
+# Qepton-Premium, nur-packages — where the archetype and its other consumers each keep a single
+# package at `<repo>/code`. That is a deliberate tier layout, not drift, and the repo was NOT
+# restructured to satisfy a path convention.
+#
+# Paths below are written EXACTLY as the archetype writes them. A `code/…` row is package-relative
+# and the auditor re-roots it against this repo's derived package root (`code/Qepton-Dev`); a
+# `scripts/…` or `.claude/…` row is repo-relative and is used as-is. The derivation reads this
+# script's own location, so nothing here declares it — the manifest declares ITSELF, and any
+# per-repo directive would show up as a fork of the very file that detects forks.
+#
+# WHY THIS LIST IS SHORT, AND SHOULD GROW. 12 of the archetype's 37 declared paths exist on both
+# sides today. Declaring the other 25 would produce a report that is two-thirds warnings on its
+# first run, which is a report nobody reads. Add a row when the file genuinely lands here.
+#
+# LICENCE: this repo is MIT, the archetype carries a placeholder. `sync:shared` preserves the
+# per-repo licence line; a plain copy silently relabels the file. Use the tool, not cp.
+
+# ── the sync apparatus itself ─────────────────────────────────────────────────────────────────
+code/scripts/audit-template-divergence.ts
+code/scripts/lib/template-normalise.ts
+code/scripts/sync-shared-file.ts
+code/scripts/lib/per-repo-header.ts
+code/scripts/shared-with-template.txt
+
+# ── hook libraries — repo-relative in every layout ────────────────────────────────────────────
+# One definition shared by every command-parsing guard here. block-dangerous.sh sources these and
+# hard-refuses to run without them, so a missing copy disables the guard rather than degrading it.
+.claude/hooks/lib/unwrap-interpreter.sh
+.claude/hooks/lib/command-forms.sh
+.claude/hooks/lib/strip-heredocs.sh
+
+# ── build + test infrastructure held in common ────────────────────────────────────────────────
+code/quasar.aliases.js
+code/quasar.aliases.d.ts
+code/scripts/verify-vite-aliases.ts
+code/scripts/provision-ownership.js
+code/testing/e2e-docker/scripts/lib/host-user.sh
