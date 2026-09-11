@@ -59,3 +59,11 @@ The following are out of scope:
 - No server-side data storage (peer-to-peer with GitHub)
 - Regular dependency updates via Dependabot
 - Automated security scanning with CodeQL
+
+## Dependencies
+
+We use Dependabot to keep dependencies updated. Security updates are prioritized:
+
+- **Critical/High** -- Merged within 7 days.
+- **Medium** -- Merged within the next release cycle.
+- **Low** -- Reviewed and merged as part of regular maintenance.
