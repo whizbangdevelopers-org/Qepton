@@ -206,8 +206,15 @@ jobs:
       contents: write
 
     steps:
+      # Pushes main below (the CHANGELOG commit). Main carries a merge-button ruleset whose only
+      # bypass is the admin role, and GitHub Actions cannot be a bypass actor, so the push must
+      # authenticate as a bypass identity: QEPTON_DEV_MAIN_PUSH, a fine-grained PAT (Contents RW,
+      # this repo only). Falls back to the built-in token where the secret is absent — the public
+      # mirror — and on Dev a missing secret makes the push FAIL, not skip.
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.QEPTON_DEV_MAIN_PUSH || github.token }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v7
@@ -299,7 +306,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
           git diff --staged --quiet || git commit -m "Update CHANGELOG.md for v${{ steps.release_notes.outputs.version }}"
-          git push origin HEAD:main || echo "No changes to push"
+          # No `|| echo`: a refused push (a missing or expired QEPTON_DEV_MAIN_PUSH under the
+          # merge-button ruleset) must fail the release job, not print a line. With nothing new
+          # committed, `git push` already succeeds as "Everything up-to-date".
+          git push origin HEAD:main
 
       # electron-builder creates the release and uploads assets during the build job
       # This step uploads any missing artifacts but keeps release as DRAFT for manual testing
