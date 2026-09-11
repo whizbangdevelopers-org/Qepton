@@ -34,6 +34,10 @@ code/scripts/shared-with-template.txt
 .claude/hooks/lib/command-forms.sh
 .claude/hooks/lib/strip-heredocs.sh
 
+# ── repo-root scripts — repo-relative in every layout ─────────────────────────────────────────
+# FORGE-83: a Dependabot PR merges only through this repo's own pre-push chain, via this command.
+scripts/merge-dependabot.sh
+
 # ── build + test infrastructure held in common ────────────────────────────────────────────────
 code/quasar.aliases.js
 code/quasar.aliases.d.ts

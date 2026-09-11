@@ -3,6 +3,7 @@
  * Custom browser-compatible renderer for .ipynb files
  */
 
+import DOMPurify from 'dompurify'
 import Prism from 'prismjs'
 import { renderMarkdown } from './markdown'
 
@@ -52,6 +53,33 @@ function getSourceText(source: string | string[]): string {
   return Array.isArray(source) ? source.join('') : source
 }
 
+/*
+ * Everything below renders a notebook that arrives in a GIST — content anyone who can edit that
+ * gist controls — and the result is inserted with v-html. So every value taken from the notebook
+ * JSON is untrusted: outputs, the declared language, even `execution_count`, which a hostile
+ * notebook can make a string. Before 2026-09-10 a `text/html` output went into the page raw, and
+ * image data, the language and the execution count went unescaped into markup and attributes.
+ */
+
+/** A `text/html` output keeps its markup (pandas tables render) but loses script and handlers. */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+}
+
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/
+
+/** An image only if its data is pure base64 — a `"` in it would break out of the src attribute. */
+function base64Image(mime: 'png' | 'jpeg', data: string): string {
+  const clean = data.replace(/\s+/g, '')
+  if (!BASE64.test(clean)) return ''
+  return `<div class="nb-image"><img src="data:image/${mime};base64,${clean}" /></div>`
+}
+
+/** The notebook's declared language lands in a class attribute: letters, digits, + and - only. */
+function safeLanguage(language: unknown): string {
+  return typeof language === 'string' && /^[A-Za-z0-9+-]+$/.test(language) ? language : 'text'
+}
+
 function highlightCode(code: string, language: string): string {
   const lang = language.toLowerCase()
   const prismLang = lang === 'python3' ? 'python' : lang
@@ -73,15 +101,15 @@ function renderOutput(output: NotebookOutput): string {
     case 'display_data': {
       if (output.data) {
         if (output.data['text/html']) {
-          return `<div class="nb-html">${getSourceText(output.data['text/html'])}</div>`
+          return `<div class="nb-html">${sanitizeHtml(getSourceText(output.data['text/html']))}</div>`
         }
         if (output.data['image/png']) {
-          const imgData = getSourceText(output.data['image/png'])
-          return `<div class="nb-image"><img src="data:image/png;base64,${imgData}" /></div>`
+          const img = base64Image('png', getSourceText(output.data['image/png']))
+          if (img) return img
         }
         if (output.data['image/jpeg']) {
-          const imgData = getSourceText(output.data['image/jpeg'])
-          return `<div class="nb-image"><img src="data:image/jpeg;base64,${imgData}" /></div>`
+          const img = base64Image('jpeg', getSourceText(output.data['image/jpeg']))
+          if (img) return img
         }
         if (output.data['text/plain']) {
           return `<div class="nb-text"><pre>${escapeHtml(getSourceText(output.data['text/plain']))}</pre></div>`
@@ -106,7 +134,8 @@ function renderCell(cell: NotebookCell, language: string): string {
       return `<div class="nb-cell nb-markdown">${renderMarkdown(source)}</div>`
 
     case 'code': {
-      const execCount = cell.execution_count != null ? `[${cell.execution_count}]` : '[ ]'
+      const execCount =
+        cell.execution_count != null ? `[${escapeHtml(String(cell.execution_count))}]` : '[ ]'
       const highlighted = highlightCode(source, language)
       const outputs = (cell.outputs || []).map(renderOutput).join('')
 
@@ -137,7 +166,7 @@ export function renderNotebook(notebookJson: string | object): string {
     const data: NotebookData =
       typeof notebookJson === 'string' ? JSON.parse(notebookJson) : notebookJson
 
-    const language = data.metadata?.language_info?.name || 'python'
+    const language = safeLanguage(data.metadata?.language_info?.name || 'python')
     const cells = data.cells.map(cell => renderCell(cell, language)).join('')
 
     return `<div class="nb-notebook">${cells}</div>`
@@ -146,7 +175,7 @@ export function renderNotebook(notebookJson: string | object): string {
     return `<div class="nb-error">
       <h3>Failed to render Jupyter Notebook</h3>
       <p>The notebook file may be corrupted or in an unsupported format.</p>
-      <pre>${error instanceof Error ? error.message : String(error)}</pre>
+      <pre>${escapeHtml(error instanceof Error ? error.message : String(error))}</pre>
     </div>`
   }
 }
