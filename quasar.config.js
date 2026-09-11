@@ -349,7 +349,7 @@ export default function (ctx) {
         publish: [{
           provider: 'github',
           owner: 'whizbangdevelopers',
-          repo: 'Qepton-Dev',
+          repo: 'Qepton',
           releaseType: 'release'
         }]
       }
