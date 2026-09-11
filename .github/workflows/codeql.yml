@@ -13,6 +13,11 @@ on:
 jobs:
   analyze:
     name: Analyze
+    # Skip on private repos: code scanning there requires GitHub's paid Code Security, and every
+    # run fails with "Code Security must be enabled" (FORGE-83 — no paid code scanning). CodeQL
+    # still runs on a product's PUBLIC mirror, where it is free; private repos rely on our own
+    # CI's audit:sast. Same guard Weaver's copy has carried since its Free mirror.
+    if: github.event.repository.visibility != 'private'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
