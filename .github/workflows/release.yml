@@ -541,43 +541,28 @@ jobs:
           # Copy files from Dev (excluding dev-only). Two rsyncs, same reason as
           # sync-to-free.yml: the app lives at code/Qepton-Dev/ and the workflows at .github/,
           # and business/, plans/, forge/ and MASTER-PLAN.md must never reach a public repo.
-          rsync -av --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='scripts/release-to.sh' \
-            --exclude='scripts/sync-issues.sh' \
-            --exclude='.githooks/' \
-            --exclude='.claude/' \
-            --exclude='docker-build/' \
-            --exclude='e2e-docker/' \
-            --exclude='testing/' \
-            --exclude='docs/' \
-            --exclude='flatpak/' \
-            --exclude='nixos-build/' \
-            --exclude='playwright.config.ts' \
-            --exclude='vitest.config.ts' \
-            --exclude='.mcp.json' \
-            --exclude='flake.lock' \
-            --exclude='flake.nix' \
-            --exclude='CLAUDE.md' \
-            --exclude='TESTING.md' \
-            --exclude='DEVELOPMENT.md' \
+          #
+          # The exclusions come from scripts/sync-exclusions.py, the ONE reader both publish paths
+          # share. This job used to carry its own two lists, and by 2026-09-10 they had drifted
+          # from .github/sync-exclude.yml: no NOTES.md (whose header says "Do not distribute") and
+          # no sync-exclude.yml, so the next tag would have published both. --delete-excluded and
+          # the verify below are explained in sync-to-free.yml and in the reader's docstring.
+          python3 "$GITHUB_WORKSPACE/scripts/sync-exclusions.py" --emit "$RUNNER_TEMP/sync"
+          rsync -av --delete --delete-excluded --filter="merge $RUNNER_TEMP/sync/app.filter" \
             "$GITHUB_WORKSPACE/code/Qepton-Dev/" ./
-
-          rsync -av --delete \
-            --exclude='workflows/snap.yml' \
-            --exclude='workflows/test.yml' \
-            --exclude='workflows/sync-to-free.yml' \
-            --exclude='workflows/dependabot-labeler.yml' \
-            --exclude='workflows/dependabot-tracker.yml' \
-            --exclude='dependabot.yml' \
-            --exclude='issue-mapping.json' \
+          rsync -av --delete --delete-excluded --filter="merge $RUNNER_TEMP/sync/github.filter" \
             "$GITHUB_WORKSPACE/.github/" ./.github/
+          python3 "$GITHUB_WORKSPACE/scripts/sync-exclusions.py" --verify .
 
-          # Patch quasar.config.cjs for Free repo
-          if [[ -f quasar.config.cjs ]]; then
-            sed -i "s/repo: 'Qepton-Dev'/repo: 'Qepton'/" quasar.config.cjs
+          # Patch quasar.config.js for the Free repo. This targeted quasar.config.CJS behind an
+          # existence check; the file is .js, so it silently patched nothing. It now fails unless
+          # the line it exists to change is there exactly once (same step in sync-to-free.yml).
+          n=$(grep -c "repo: 'Qepton-Dev'" quasar.config.js || true)
+          if [[ "$n" != 1 ]]; then
+            echo "::error::expected exactly one repo: 'Qepton-Dev' in quasar.config.js, found ${n:-none}"
+            exit 1
           fi
+          sed -i "s/repo: 'Qepton-Dev'/repo: 'Qepton'/" quasar.config.js
 
           # Commit and push if there are changes
           git add -A

@@ -8,13 +8,15 @@ on:
       - 'code/Qepton-Dev/src/**'
       - 'code/Qepton-Dev/public/**'
       - 'code/Qepton-Dev/package.json'
-      - 'code/Qepton-Dev/quasar.config.cjs'
+      # quasar.config.js, not .cjs: the .cjs spelling named a file that no longer exists, so a
+      # build-config change never triggered a demo deploy (corrected 2026-09-10).
+      - 'code/Qepton-Dev/quasar.config.js'
       # … and the Free mirror, which receives that subtree flattened to its root.
       # paths filters cannot take expressions, so both spellings are listed; the filter is an OR.
       - 'src/**'
       - 'public/**'
       - 'package.json'
-      - 'quasar.config.cjs'
+      - 'quasar.config.js'
       - '.github/workflows/demo-deploy.yml'
   workflow_dispatch:
 
