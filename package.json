@@ -37,6 +37,7 @@
     "audit:template-divergence": "npx tsx scripts/audit-template-divergence.ts",
     "sync:shared": "npx tsx scripts/sync-shared-file.ts",
     "audit:shell-safety": "npx tsx scripts/verify-shell-safety.ts",
+    "audit:dependabot-labeling": "bash ../../scripts/dependabot-scope.sh --verify ../..",
     "audit:push-gates": "npx tsx scripts/verify-push-gates.ts",
     "audit:vite-aliases": "npx tsx scripts/verify-vite-aliases.ts",
     "provision:ownership": "node scripts/provision-ownership.js",
