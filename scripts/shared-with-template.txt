@@ -1,41 +1,265 @@
-# Files this repo holds in common with quasar-project-template, checked by
-# audit:template-divergence. One line per path; # comments and blanks ignored.
+# Files that MUST be byte-identical across quasar-project-template and every project descended
+# from it. Checked deterministically by audit-template-divergence.ts (audit:template-divergence),
+# which runs in each project's compliance chain and WARNS when a listed file has forked.
 #
-# THIS REPO IS A MULTI-PRODUCT MONOREPO, and that is why it was not onboarded until 2026-08-30.
-# `code/` holds six sibling products — Qepton, Qepton-Dev, Qepton-Plugins, Qepton-Plugins-Premium,
-# Qepton-Premium, nur-packages — where the archetype and its other consumers each keep a single
-# package at `<repo>/code`. That is a deliberate tier layout, not drift, and the repo was NOT
-# restructured to satisfy a path convention.
+# WHY THIS EXISTS
 #
-# Paths below are written EXACTLY as the archetype writes them. A `code/…` row is package-relative
-# and the auditor re-roots it against this repo's derived package root (`code/Qepton-Dev`); a
-# `scripts/…` or `.claude/…` row is repo-relative and is used as-is. The derivation reads this
-# script's own location, so nothing here declares it — the manifest declares ITSELF, and any
-# per-repo directive would show up as a fork of the very file that detects forks.
+# The template and its flagship product (Weaver) forked on scripts/audit-sast.ts and nobody
+# caught it: the template was fixed, Weaver kept the broken copy, and the only sync tooling was
+# a sonnet agent someone had to remember to run before a release, whose content check read "the
+# first 20 lines". A fork deep in a rules array is invisible to that. This is the deterministic
+# backstop that a human does not have to remember: it runs every push.
 #
-# WHY THIS LIST IS SHORT, AND SHOULD GROW. 12 of the archetype's 37 declared paths exist on both
-# sides today. Declaring the other 25 would produce a report that is two-thirds warnings on its
-# first run, which is a report nobody reads. Add a row when the file genuinely lands here.
+# WHY THE LIST IS SHORT, AND MUST STAY SHORT
 #
-# LICENCE: this repo is MIT, the archetype carries a placeholder. `sync:shared` preserves the
-# per-repo licence line; a plain copy silently relabels the file. Use the tool, not cp.
+# A file belongs here ONLY if it is genuinely meant to be the SAME everywhere — a shared guard
+# or a shared contract — NOT a script projects legitimately extend. audit-sast.ts is the
+# cautionary case: Weaver correctly adds 9 product-specific security rules to it, so byte-
+# identity is the wrong invariant for the script itself. What must not fork is the CONTRACT its
+# secret rules are held to — the corpus below. Pin the contract, not the implementation, and
+# each project's own self-test keeps its (extended) rules honest against the shared spec.
+#
+# Divergence WARNS, never fails: which side is authoritative (template moved, or project has a
+# fix to promote) is a human call, and a hard fail would break a project's CI every time the
+# template advanced. The warning makes the fork loud; a human reconciles it.
+#
+# Paths are relative to the repository root. Lines starting with # and blank lines are ignored.
 
-# ── the sync apparatus itself ─────────────────────────────────────────────────────────────────
+# The secret-detection CONTRACT. If this forks, one project's SAST proves its secret rules
+# against a different spec than the rest of the portfolio — the guarantee silently differs.
+code/scripts/fixtures/sast-secret-corpus.txt
+
+# This auditor and its manifest — self-checking. If the divergence machinery itself forks, the
+# turtles-all-the-way-down failure (a broken checker reporting green) is exactly what goes
+# uncaught. So the checker checks itself.
 code/scripts/audit-template-divergence.ts
-code/scripts/lib/template-normalise.ts
+code/scripts/sync-template.ts
+
+# The header-preserving sync path, and the lib it reads. Declared 2026-08-29 (Mark's call).
+#
+# WHY. `sync-template.ts --pull` copies BYTES. It normalises the licence line for COMPARISON so its
+# report agrees with audit:template-divergence, and then clobbers that line on the way down —
+# there is no preservation path in it (copyFileSync, no capture/restore). sync-shared-file.ts was
+# built for exactly that, after the template's `{{LICENSE_IDENTIFIER}}` was overwritten with a
+# downstream repo's proprietary line THREE times in one session on 2026-08-25, and a
+# `weaver-free: never-publish` marker was dropped from a file whose exclusion depended on it. Its
+# own docblock states the principle this manifest exists to serve: "Remember to check is not a
+# control; this is."
+#
+# WHAT IT WAS FIXING, MEASURED. Until today these two files lived in the archetype and in Weaver
+# and were declared by NEITHER manifest, so the portfolio ran two sync lineages: the archetype and
+# Gantry declared sync-template.ts + lib/template-normalise.ts; Weaver declared these two and does
+# not carry the other pair at all. All three manifests read 35 rows throughout — a total
+# substitution of the mechanism that every cardinality check reported as healthy. Cardinality was
+# never the property anyone cared about; the declared SET is.
+#
+# THAT RESIDUE IS RESOLVED — FORGE-54 retired lib/template-normalise.ts, and the paragraph that
+# stood here was WRONG in a way worth keeping, because the error is reusable. It said the two
+# normalisers' disagreement was LATENT, on the basis that all 8 marker forms then live in the
+# portfolio were stripped by both. That test filters on the wrong attribute. The trigger was never
+# a new marker FORM; it is editing a marker-mentioning docblock line in one repo only, across files
+# already declared here — an ordinary act. Measured 2026-09-01 across the declared set: 16 file
+# instances / 25 lines in Weaver, 6 files / 9 lines in Gantry, replicated by two sessions reading
+# the shipped sources independently. Every instance .ts/.txt, so no markdown row was ever needed.
+#
+# Four parties held the latent reading, and it survived because a scope test that filters on the
+# wrong attribute returns a clean answer to a question nobody asked — indistinguishable from a
+# clean answer to the right one. lib/per-repo-header.ts is now the single predicate; its rule 2 is
+# comment-agnostic but anchored on a comment OPENER, never on `^.*`, and it carries a paired
+# corpus that fails in both directions. See its docblock before widening it again.
 code/scripts/sync-shared-file.ts
 code/scripts/lib/per-repo-header.ts
 code/scripts/shared-with-template.txt
 
-# ── hook libraries — repo-relative in every layout ────────────────────────────────────────────
-# One definition shared by every command-parsing guard here. block-dangerous.sh sources these and
-# hard-refuses to run without them, so a missing copy disables the guard rather than degrading it.
-.claude/hooks/lib/unwrap-interpreter.sh
-.claude/hooks/lib/command-forms.sh
-.claude/hooks/lib/strip-heredocs.sh
+# The licence-header guard. Its LOGIC must be identical everywhere — it is what stops a copied file
+# carrying another product's licence, which is how eight Gantry files came to claim AGPL/BSL in a
+# proprietary product. Its own HEADER, by contrast, must differ per repo (the template is
+# licence-blank; Gantry is proprietary), so audit-template-divergence.ts normalises the licence line
+# out of the comparison. This entry is why that exemption exists rather than being speculative: it is
+# the first shared file whose header is legitimately per-repo.
+#
+# NOT listed, deliberately: verify-push-gates.ts. Its logic is shared but its docblock is genuinely
+# project-specific (the template's hook gates a narrower chain than test:prepush, for a reason that
+# holds only there). Pin the contract, not every file that happens to be similar.
+code/scripts/verify-license-headers.ts
 
-# ── repo-root scripts — repo-relative in every layout ─────────────────────────────────────────
-# FORGE-83: a Dependabot PR merges only through this repo's own pre-push chain, via this command.
+# The Docker-first E2E contract. The policy is portfolio-wide (no bare Playwright runner; a browser
+# from a developer machine gives machine-dependent results), so the CORPUS is pinned: it is the spec
+# the rule is held to, and a project whose corpus differs is proving its rules against a different
+# guarantee than everyone else. The checker is pinned with it because nothing here is
+# project-specific — unlike audit-sast.ts, which projects legitimately extend with product rules.
+#
+# Added 2026-08-12. Until then the rule existed only in Gantry, so the template and every other
+# descendant had no commit-time guard on a policy all of them are subject to.
+code/scripts/fixtures/e2e-docker-only-corpus.txt
+code/scripts/verify-e2e-docker-only.ts
+
+# The workflow-taint contract. Same argument as the Docker-first pair above: the CORPUS is the spec
+# the rule is held to, and its IGNORE half carries the env-indirection remedy — a project whose
+# corpus differs is proving its rules against a different guarantee. The checker is pinned with it
+# because nothing in it is project-specific.
+#
+# Added 2026-08-13, and it earned the entry immediately: Weaver's copy went one section behind
+# within a day of landing, and the only thing that caught it was a peer mentioning it in passing.
+# That is exactly the population the WHY THIS EXISTS section above describes.
+code/scripts/fixtures/workflow-taint-corpus.yml
+code/scripts/verify-workflow-taint.ts
+
+# The auditor-contract checker. Its LOGIC is portfolio-wide by definition — it enforces FORGE-41,
+# the standard that every auditor must be able to demonstrate it fails — so a repo running a forked
+# copy would be holding its auditors to a different contract than everyone else, which is the exact
+# class this file exists to catch. Its MANIFEST is deliberately NOT listed: auditor sets differ per
+# repo (Weaver 85, template 32, Gantry 19), so scripts/data/auditor-contracts.json is a per-repo
+# declaration, the same split as verify-license-headers.ts against verify-legal-ip.ts.
+code/scripts/verify-auditor-contracts.ts
+
+# The rule-contract checker — third in the FORGE-36 / FORGE-41 line, and shared for exactly the
+# reason above: "a rule that cannot fail is a suggestion" is a portfolio standard, so a forked copy
+# would hold one repo's rules to a weaker contract than the rest. Its MANIFEST is per-repo for the
+# same reason auditor-contracts.json is (weaver 25 rules, gantry 21, qepton 15, dotclaude 18), and
+# the universe is DERIVED from each repo's own .engram.yaml rules: block rather than restated here.
+# Requires js-yaml (declared in weaver; a consuming repo needs it before adopting this file).
+code/scripts/verify-rule-contracts.ts
+
+# The hook meta-auditor. Built in Gantry 2026-08-12 after two of six hook pairs were found forked —
+# one of them the guard that actually loads for every `code/` session, carrying a naive grep that
+# blocked innocent commit messages. It replaced a one-command stub (`block-dangerous.sh
+# --self-test`) that tested one implementation of one hook and said nothing about whether the hook a
+# session LOADS is that implementation.
+#
+# Shared because all three legs are derived, not declared: settings files, hook trees and the
+# self-test target all come from `git ls-files`, so it fits any layout — the template and Gantry
+# keep root hooks under core/ and stack/, Weaver keeps them flat.
+#
+# NAMED, not "this repo": this file is declared shared with ITSELF, so every word here is
+# byte-identical in every repo and a self-reference re-binds to whoever is reading. The sentence
+# above said "this repo keeps root hooks under core/ and stack/" until 2026-08-29 — true in the
+# template and Gantry, FALSE in Weaver, which carried it verbatim while keeping its hooks flat.
+# In a file that travels, only absolute names can be true everywhere. The one hardcoded path it originally carried
+# (.claude/hooks/core/block-dangerous.sh) was the only thing that would have forked it, and is now
+# derived from the wiring — which also made it strictly stronger, since a repo with the guard in two
+# trees now self-tests BOTH.
+code/scripts/verify-hooks.ts
+
+# The dev-server alias derivation and its guard. app-vite 3 dropped the built-in `src`/`layouts`/
+# `stores`/… aliases, and every project scaffolded from quasar-project-template imports through
+# breakage, and therefore the fix, is portfolio-wide by construction. The derivation reads JSONC,
+# because a tsconfig may legitimately carry comments; a comment scanner replicated by hand into four
+# quasar.config.js files is four chances to mishandle a string boundary, in a file whose failure mode
+# is a dev server that silently resolves nothing while typecheck and the production build stay green.
+# Pinned as a pair: the checker is the contract the module is held to, and neither half is
+# project-specific.
+#
+# It sits at the app root rather than under scripts/lib/ because quasar.config.js imports it at
+# BUILD time and scripts/lib/ is excluded wholesale from the public mirror — a module there would
+# leave the published config importing a file that is not in the tree. audit:excluded-imports
+# caught that on the first run.
+code/quasar.aliases.js
+code/quasar.aliases.d.ts
+code/scripts/verify-vite-aliases.ts
+
+# The port-block checker (FORGE-43). Portfolio-wide by definition: it enforces that a repo names
+# only ports inside its OWN block, and the whole point of a block scheme is that every product
+# obeys it. Product-agnostic by construction — it reads productName from package.json and parses
+# the blocks out of docs/development/PORT-ALLOCATION.md, so the file is byte-identical everywhere
+# and a scaffolded project needs to edit nothing.
+#
+# The template ships it deliberately even though a fresh scaffold has no blocks yet: it reports
+# NOT YET CONFIGURED rather than a green tick, which is what stops a new project inheriting a
+# silent pass. That distinction was found BY putting it in the template — in weaver the table is
+# populated, so the vacuous path never ran.
+code/scripts/verify-port-allocation.ts
+
+# The working-tree ownership guard and its provisioning half. The E2E harness bind-mounts the repo,
+# so a container running as root writes root-owned files into the developer's tree and the next
+# `quasar dev` dies with EACCES — measured in the template (28 paths, dev server would not start)
+# and in weaver (173, under dist/). Portfolio-wide by construction: it RECOVERS the uid variable
+# from each repo's own docker-compose.yml rather than assuming a name, which is what let it hold
+# weaver to the same invariant while weaver still called it E2E_UID. All four now use HOST_UID —
+# the recovery stays because assuming a name is what makes a shared checker un-shareable. A forked
+# copy would let one repo's containers keep writing as root while reporting green.
+code/scripts/provision-ownership.js
+
+# The host-user helper every E2E runner sources. Same argument as the ownership guard above, and
+# the two are a pair: the guard enforces that every compose-driving script puts the uid in the
+# environment, and this is the thing they all source to do it. It forked three ways before being
+# pinned — weaver had it under a different variable name, gantry inlined two of its four lines in
+# three scripts and nothing in four others, and the template had none at all.
+code/testing/e2e-docker/scripts/lib/host-user.sh
+
+# The shared MCP base, and the guard that keeps it shared-able.
+#
+# The portfolio ran seven independent copies of codebase-mcp. A byte-comparison said 9 of 30 tool
+# files were "identical everywhere" — which reads as a core waiting to be extracted, and was not.
+# They were identical because Gantry had inherited WEAVER'S DATA verbatim: service-architecture.ts
+# hardcoded an initializationOrder naming vmRegistry / ImageManager / Provisioner, compliance-scripts.ts
+# hardcoded Weaver's audit catalogue, and websocket-conventions.ts hardcoded /ws/status and
+# verifyWsToken(). Pinning those three byte-identical would have ENFORCED one product's data on every
+# other product, permanently. Sameness produced by unexamined copying is indistinguishable from
+# sameness produced by good design, and only the second kind belongs on this list.
+#
+# So only the genuinely product-NEUTRAL half is pinned: five tools that derive everything they return
+# from the repo they are pointed at, plus the one shared utility. audit:mcp-base-neutral is what keeps
+# it that way — it fails if a base file names a product, if a product re-forks the file reader, or if a
+# product shadows a base tool with a local copy. All three legs are negative-tested.
+#
+# The utility is on this list for a measured reason, not a theoretical one: Gantry's private copy was
+# missing listFilesRecursive entirely, so its getProjectRules read .claude/rules with a FLAT reader and
+# returned 0 of 15 nested rule files — the always-loaded core/ set, absent with no error. The template
+# and Weaver both had the fix. Nothing compared the three copies. Now something does.
+code/scripts/verify-mcp-base-neutral.ts
+
+# The knowledge-entry length gate. The SCAN is portfolio-wide — it resolves each repo's store
+# from its own .engram.yaml and skips inherited template projections, so nothing in it is
+# repo-specific. The BASELINE beside it is per-repo data and is deliberately NOT pinned.
+code/scripts/verify-knowledge-entry-length.ts
+
+# The diagram-currency auditor. SHARED because the archetype AUTHORS the thing that breaks it:
+# .claude/rules/core/diagrams.md documents the opt-in marker, so it SHOWS one — a marker above a
+# d2 fence, nested inside a ```markdown example. An unanchored fence scan reads that example as a
+# live claim, and on 2026-09-01 it failed a consumer's push while the archetype had no such
+# auditor and could not learn it. An auditor's universe must match its consumer's; here the
+# consumer had one the author didn't, so the author now runs it too.
+#
+# The ALLOWLIST beside it is per-repo data and is deliberately NOT pinned: scripts/data/
+# diagram-external-refs.json declares tokens a diagram in THAT repo legitimately names but does
+# not track (tooling in a sibling repo). Absent means none, which is correct for a repo with no
+# cross-repo diagram. Same split as verify-license-headers.ts against verify-legal-ip.ts.
+code/scripts/verify-diagram-currency.ts
+code/codebase-mcp-base/utils/file-reader.ts
+code/codebase-mcp-base/tools/component-tree.ts
+code/codebase-mcp-base/tools/form-validation-rules.ts
+code/codebase-mcp-base/tools/global-vocabulary.ts
+code/codebase-mcp-base/tools/store-signatures.ts
+code/codebase-mcp-base/tools/type-definitions.ts
+
+# Decision-reference integrity (FORGE-1). The CHECKER is shared byte-identical; the DECLARATION
+# beside it (forge/decision-sources.yaml — own_prefix, whitelisted foreign namespaces) is per-repo
+# and deliberately NOT pinned. Same split as verify-license-headers.ts against verify-legal-ip.ts.
+#
+# It is on this list because the un-shared version is what caused the defect. FORGE-1 has been
+# portfolio policy since 2026-06-11 and was implemented in exactly ONE repo; the others hand-copied
+# fragments or nothing, and the sole complete copy hardcoded /WVR-\d+/ in four places while reading
+# own_prefix from the manifest in a fifth. Copied anywhere else it would have reported PASS while
+# checking nothing — zero matching rows, zero matching tokens, no findings, green. Meanwhile a
+# product shipped for months with a bare-numbered decision table and code citing a GAN-9 that
+# existed nowhere. Pinning the checker is what stops the next repo re-deriving a partial one.
+code/scripts/verify-decision-refs.ts
+
+# The decision-table writer and the citation resolver. Shared because the un-shared version is
+# what produced the drift: four hand-copies (Weaver, Forge, wbd-entitlement, Gantry) that differed
+# only by a hardcoded namespace string, each improved in a DIFFERENT direction. Promoting any one
+# of them alone would have dropped the rest of the work — taking the newest generic copy would
+# have lost the duplicate-title guard and the sed-escaping fix, both written after real incidents.
+# This file is their union, and pinning it is what stops a fifth fork.
+scripts/add-decision.sh
+scripts/decision-cite.sh
+
+# The Dependabot merge path — FORGE-83 (A Dependabot PR merges only through the repo's own
+# pre-push chain — never GitHub's merge button, and no paid code scanning). Shared because the
+# repo it acts on is whichever one it lives in: it derives the repository, the lockfile set and
+# the hook from its own checkout, so the same bytes serve every product. A forked copy is a
+# second merge path held to a weaker set of refusals than the rest of the portfolio.
 scripts/merge-dependabot.sh
 
 # Dependabot PR labelling: the production/development classifier, label creation, the check that a
@@ -47,9 +271,179 @@ scripts/merge-dependabot.sh
 # stay in each repo's dependabot-labeler.yml.
 scripts/dependabot-scope.sh
 
-# ── build + test infrastructure held in common ────────────────────────────────────────────────
-code/quasar.aliases.js
-code/quasar.aliases.d.ts
-code/scripts/verify-vite-aliases.ts
-code/scripts/provision-ownership.js
-code/testing/e2e-docker/scripts/lib/host-user.sh
+# The runner for every repo-root script's --self-test. Shared because the gap it closes was
+# portfolio-wide: on 2026-09-16 the self-tests of merge-dependabot.sh, add-decision.sh and
+# dependabot-scope.sh ran in no gate in the archetype, Gantry, Weaver or Qepton. It DERIVES the set
+# from what the repo tracks — a hand list in package.json was disproved by the first consumer it
+# met (Qepton has no add-decision.sh; Weaver has a fourth self-testing script) — so the same bytes
+# serve every layout. Only the package.json line that calls it is per-repo, because the relative
+# path from the package root differs (`../scripts/` here, `../../scripts/` in Qepton).
+scripts/run-root-self-tests.sh
+
+# The command-position unwrapper, shared by every hook that parses a command string.
+#
+# Pinned because four copies of one file with nothing comparing them is exactly the drift that
+# produced the defect it exists to fix. Its own history is the argument: `bash -c '…'` bypassed
+# every PreToolUse guard from 2026-07-15 to 2026-08-25 because five hooks had independently
+# hand-copied a quote-stripping idiom, and Qepton's block-dangerous was accidentally immune only
+# because it had NOT copied the newer version. Neither copy was simply better; nothing could tell.
+#
+# It lives under .claude/hooks/ rather than code/, so a repo whose hooks sit flat (Weaver) and one
+# that splits core/ + stack/ (the template, Gantry) both carry it at their own path — the entry
+# below is the template's, and each consumer's copy names its own. audit:template-divergence excludes the licence line, which is what lets a
+# proprietary repo and a licence-blank template hold byte-identical logic.
+.claude/hooks/lib/unwrap-interpreter.sh
+
+# Its two siblings, added 2026-08-28. Same argument, and the omission was measurable: the reach
+# check built that day found `command-forms.sh` ABSENT from Gantry, while Gantry's own
+# verify-hooks.ts carried a comment naming it as a live consumer — a dangling reference to a file
+# the repo did not have. `strip-heredocs.sh` was in both and pinned by nothing, which is the exact
+# state unwrap-interpreter.sh was in while four copies quietly diverged for six weeks.
+#
+# `command-forms.sh` is the canonical list of SHAPES a command can arrive in; `strip-heredocs.sh`
+# is one definition shared by every command-parsing guard. Neither has a per-repo half.
+#
+# NO CONSUMER COUNT, and the reason is worth keeping: this quoted the lib's own "five
+# consumers" until 2026-08-29, when there were seven. Worse, that number describes the
+# GLOBAL ~/.claude/hooks population, not this repo — in every product tree these libs have
+# exactly one consumer. A count quoted from another file's header is a second copy of a
+# number with no generator, and it travelled here and to two product repos before anyone
+# checked it.
+.claude/hooks/lib/command-forms.sh
+.claude/hooks/lib/strip-heredocs.sh
+
+# The hook negative-test harness and its runner. A self-test proves a guard's CASES EXIST; only
+# breaking the guard proves it can FAIL, and those are indistinguishable from outside. Both files
+# are layout-agnostic on purpose — neg_begin mirrors whichever hook tree a repo uses, and the
+# runner derives its universe from every tree under the repo root — so the SAME BYTES serve
+# ~/.claude (flat `hooks/`), this template (`.claude/hooks/{core,stack}` + `code/.claude/hooks`)
+# and a repo that keeps its hooks flat. That is what makes them shareable rather than forkable.
+#
+# The per-hook tests under .claude/hooks/negative-tests/<hook>.sh are deliberately NOT listed:
+# each names its own repo's hooks and corpus case labels, so byte-identity would be wrong.
+.claude/hooks/negative-tests/lib.sh
+.claude/hooks/negative-tests/run-negative-tests.sh
+.claude/hooks/run-negative-tests.sh
+
+# The form-invariance auditor that consumes command-forms.sh. Product-neutral by construction and
+# for the same reason verify-hooks.ts is: coverage is enumerated from BOTH .claude/settings.json and
+# code/.claude/settings.json, cases are declared by basename and applied to every wired path, and
+# each trigger is EXTRACTED from the hook rather than restated, so it fits a flat hook tree and a
+# core/+stack/ split alike. A forked copy would hold one repo's guards to a different set of
+# command forms than the rest of the portfolio — which is the defect it exists to catch, one level
+# down: `bash -c '…'` bypassed every PreToolUse guard for six weeks because the house rules
+# INSTRUCT that wrapper and nothing checked that the guards understood it.
+code/scripts/verify-hook-forms.sh
+
+# The decision-table SHAPE auditor. Pinned as an implementation, not just a corpus, because
+# nothing in it is project-specific: it derives the repo's own prefix from its own rows and reads
+# its own MASTER-PLAN. A repo running a forked copy would be holding its decision table to a
+# different grammar than the rest of the portfolio, which is the exact class this file catches —
+# five different headers for the same three columns across six repos, none of them checked.
+#
+# Added 2026-08-26, after decision-cite.sh GAN-8 returned 476 characters of decision BODY as a
+# "title" and exited 0, satisfying both audit:decision-refs and the citation rule it enforces.
+scripts/verify-decision-table.py
+
+# Its proof that it can FAIL. Pinned for the same reason as the auditor: the corpus inside the
+# auditor proves the CASES exist, and only this proves main() reaches them with the rows it
+# should. A repo running the auditor without it holds a green it has never seen fail.
+#
+# Portable by construction — the prefix, the highest id and the id it relocates are all DERIVED
+# from whichever MASTER-PLAN.md sits beside it, so it runs unmodified in every namespace. A
+# hardcoded `FORGE-57` would have passed in Forge and been meaningless everywhere else.
+#
+# Added 2026-09-02 with FORGE-56, which gives a plan a second table and moves id contiguity to a
+# union pass. Its N6b case asserts the pre-split per-table check WOULD have reported a phantom
+# gap, so the fix cannot silently regress.
+scripts/verify-decision-table.negative-test.py
+
+# The ageing half of the decision register. verify-decision-table.py asserts an open row's SHAPE;
+# this asserts that it is MOVING — the thing FORGE-56 was written about ("nothing ages them"). A
+# plain `open` row past the threshold is neglect; a `blocked-on` row names the observation it waits
+# on, so its age measures the world rather than the register and it deliberately never ages.
+#
+# Pinned as an implementation because nothing in it is project-specific: it reads whichever
+# MASTER-PLAN.md sits beside it and takes its threshold from a per-repo baseline JSON.
+scripts/verify-decision-open.py
+
+# FORGE-68 (ADP-2 — the eight shared auditors reconcile before their proofs are written), wave 1.
+# Already byte-identical below the licence header in all three repos when it was measured on
+# 2026-09-04 — zero code AND zero prose divergence — so this entry records a fact rather than
+# forcing a reconciliation. That is the cheapest possible first row for the wave, and it is why it
+# goes first: it sets the pattern (declare, then prove, then descend the cap) with no argument
+# about whose copy is canonical.
+code/scripts/verify-lockfile.ts
+
+# FORGE-68 wave 1, script 2 of 8 — check-bundle-size.ts. Reconciled 2026-09-05.
+#
+# The measured divergence was 28 diff lines and NONE of it was the budgets: all three repos already
+# carried chunk 500 / JS 2500 / CSS 600. What forked was the PROSE justifying those numbers — the
+# template's re-baseline argument, Weaver's per-release snapshot accounting — plus a licence header
+# the template did not have and a docblock in all three still quoting the pre-baseline figures
+# (JS 2000, and CSS 200 in the template and Gantry).
+#
+# So the numbers AND their rationale moved to scripts/data/bundle-budgets.json, per-repo and NOT
+# shared. That is what lets the script be shared: when Weaver's budget genuinely moves at v1.2 —
+# its own rationale says it will — the data file changes and this file does not, which is exactly
+# the forking pressure ADP-2 exists to remove.
+code/scripts/check-bundle-size.ts
+
+# FORGE-68 wave 1, script 3 of 8 — verify-knowledge-ids-unique.ts. Reconciled 2026-09-05.
+#
+# P3's CORRECTED direction: Weaver led and was promoted UPSTREAM, rather than the template's copy
+# being taken as canonical. Weaver already derived the category universe from the vendored vocab
+# (FORGE-20); the template and Gantry hardcoded ['lessons','gotchas'], which exempted the whole
+# heuristics subdir from uniqueness checking. Measured before the promotion: the TEMPLATE's own
+# store held 519 lessons + 402 gotchas + 312 heuristics, so a quarter of the corpus that seeds
+# every new project sat outside its own auditor. No duplicate had slipped through — which is what
+# a guard looks like right up until it matters.
+#
+# What travelled upstream from Weaver: the SUBDIRS import and its docstring. What was added here:
+# the P2 extraction (auditIds over injected file contents, so one proof serves three stores) and
+# the self-test the contract rows in all three repos said had never been exercised.
+code/scripts/verify-knowledge-ids-unique.ts
+
+# FORGE-68 wave 1, script 4 of 8 — verify-e2e-selectors.ts. Reconciled 2026-09-05.
+#
+# THE PLAN CALLED THIS ONE RIGHT: "exemptions become data". The three copies had forked ONLY on
+# per-repo exemption patterns hardcoded into the shared script — Gantry five (three
+# @vue-flow/core runtime classes, two data-rendered label shapes), Weaver one (pricing values
+# rendered from constants). Both legitimate, neither belonging to the archetype, and together the
+# entire divergence beyond the licence header.
+#
+# They now live in scripts/data/e2e-selector-exemptions.json, per repo and NOT shared. Every rule
+# carries a `why` and loadExemptions() REFUSES a bare one — an exemption is a suppression, and the
+# same contract governs sast-ignore[rule-id] and template-auditors-declined.json.
+code/scripts/verify-e2e-selectors.ts
+
+# FORGE-68 wave 1, script 5 of 8 — verify-knowledge-schema.ts. Reconciled 2026-09-05.
+#
+# NEITHER SIDE LED OUTRIGHT — this one is a UNION, not a promotion, and P3 permits that.
+# Weaver had scope-RUNG validation the template lacked (a `scope: language` entry that names no
+# language is UNROUTABLE: the projection selects BY language, so it matches nothing and reaches no
+# consumer). The template had a wider domain list and the ID form carrying the projection's
+# fact-hash disambiguator. Both went upstream.
+#
+# VALID_DOMAINS was stale in BOTH, measured against the live knowledge_domains taxonomy (FORGE-19)
+# on 2026-09-05: template 16, weaver 13, authority 22 — attic, engram-nix, forgejo,
+# nixos-packaging, python-packaging and synology were in neither. It stays a literal because a
+# scaffolded template must audit itself with no database; it is now a literal that matches.
+code/scripts/verify-knowledge-schema.ts
+
+# audit:dependabot-coverage — a declared update directory must name a manifest that exists, and
+# every tracked manifest must be covered. Shared because nothing in it is project-specific: it
+# reads the repo's own .github/dependabot.yml against its own `git ls-files`. A directory that
+# matches no manifest is SILENCE to Dependabot — no warning, no failed run — so a forked copy
+# holds one repo's dependency updates to a weaker rule with nothing to show that it has.
+#
+# Path is REPO-ROOT-relative like every row here. It was first declared as
+# `scripts/verify-dependabot-coverage.ts`, which names no file, and audit:template-divergence
+# hard-failed on it the same day.
+#
+# THIS FILE'S LAYOUT IS PART OF ITS CONTRACT. On 2026-09-09 the commit adding this row also moved
+# every path line in the manifest into one sorted block at the end, here and in Weaver, leaving
+# each comment above describing nothing. The path SET was unchanged, so every row still resolved
+# and nothing failed — a forked manifest only WARNS. It stood for three days. Add a row under the
+# comment that justifies it; never regenerate this file by sorting it.
+code/scripts/verify-dependabot-coverage.ts
