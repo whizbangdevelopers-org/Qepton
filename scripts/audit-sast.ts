@@ -272,7 +272,11 @@ const rules: Rule[] = [
         return false
       // TOKEN_ENV = 'APP_GITHUB_TOKEN' — the NAME of the variable, not its value. Same class.
       if (ENV_VAR_NAME_HOLDER.test(key) && ENV_VAR_NAME_VALUE.test(value)) return false
-      if (/^[./~]|^[A-Za-z]:[\\/]/.test(value)) return false // the value is a path, not a secret
+      // The value is a path, not a secret: absolute, relative, home, a drive letter, or one rooted
+      // at a variable (`"$ROOT/secrets/app.yaml"`, added 2026-09-18, when Gantry's sops wrapper
+      // naming the file it decrypts from was reported as a hardcoded secret). The variable must
+      // START the value and be followed by a separator; the corpus pins both halves.
+      if (/^[./~]|^[A-Za-z]:[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*\//.test(value)) return false
       if (/^test_/i.test(value)) return false // fixture logins, not credentials
       // A shell EXPANSION is not a literal — `SECRET="$(openssl rand …)"`, `SECRET="$OTHER"`,
       // `SECRET=${OTHER}`, `SECRET=`cmd``. This is the one thing a static checker CAN decide with
