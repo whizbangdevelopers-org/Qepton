@@ -84,7 +84,7 @@ interface Rule {
  * not see any of the camelCase ones.
  */
 const SECRET_NAME =
-  /(?:api[-_]?key|secret|password|passwd|pwd|pass|token|credential|auth[-_]?key|private[-_]?key|access[-_]?key)/i
+  /(?:api[-_]?key|secret|password|passwd|pwd|pass(?!ed|ing|age)|token|credential|auth[-_]?key|private[-_]?key|access[-_]?key)/i
 
 /** Identifier fragments that mean display text, never a credential. */
 const UI_STRING_NAME =
@@ -141,9 +141,16 @@ const URL_CARRIES_CREDENTIAL =
 const ENV_VAR_NAME_HOLDER = /(?:_env|_env_var|_var|_var_name|_env_name|_key_name)$/i
 const ENV_VAR_NAME_VALUE = /^[A-Z][A-Z0-9_]{2,}$/
 
-/** Values that are the CORRECT thing to commit — templates, not secrets. */
+/**
+ * Values that are the CORRECT thing to commit — templates and demo fixtures, not secrets.
+ * `demo[-_]` is here because Weaver's demo mode returns `demo_private_key…` as a fake VAPID
+ * key; a value literally prefixed `demo_`/`demo-` is a placeholder of the same class as
+ * example/dummy/sample, in any repo. `mock[-_]` joined them 2026-10-01, when scanning testing/
+ * found Qepton's E2E helper seeding `mock_token_for_testing`. (Weaver carried `demo`, `sample`,
+ * `fake` and `placeholder` before the template did; the template caught up the same day.)
+ */
 const PLACEHOLDER_VALUE =
-  /^(?:CHANGE_ME|CHANGEME|REPLACE_ME|TODO|TBD|<.*>|\{\{?.*\}?\}|\$\{.*\}|x{3,}|\*{3,}|your[-_]|example|dummy|redacted|\.{3})/i
+  /^(?:CHANGE_ME|CHANGEME|REPLACE_ME|TODO|TBD|<.*>|\{\{?.*\}?\}|\$\{.*\}|x{3,}|\*{3,}|your[-_]|example|sample|demo[-_]|dummy|mock[-_]|fake|placeholder|redacted|\.{3})/i
 
 /**
  * Human prose in ANY language — letters, spaces, light punctuation, nothing else.
@@ -152,6 +159,25 @@ const PLACEHOLDER_VALUE =
  * A credential carries entropy; a word does not, whatever alphabet it is written in.
  */
 const PROSE_VALUE = /^[\p{L}\s'’.,!?()/-]+$/u
+
+/**
+ * A SENTENCE — several words, plus the punctuation prose actually uses and `PROSE_VALUE` above
+ * deliberately excludes (a colon, an em dash, a section mark, an ampersand).
+ *
+ * Added 2026-09-20, when a DECLARATION file tripped this rule: `"audit:token-reach": "docs/…§
+ * GitHub tokens — run at mint, at rotation, …"`. The key capture begins after the namespace colon,
+ * so the rule saw `token-reach` assigned three lines of English and called it a credential. The
+ * available non-fixes were both forbidden — renaming the auditor to dodge the regex is the
+ * input-rewording `~/.claude/rules/never-game-auditors.md` refuses, and a JSON file cannot carry a
+ * `sast-ignore` comment on the offending line.
+ *
+ * FOUR whitespace-separated words is the gate, and it opens no new blind spot: `PROSE_VALUE`
+ * already treats a multi-word letter-only string as prose, so a space-separated passphrase was
+ * never caught by this rule to begin with. Digits stay OUT of the class on purpose — `hunter2hunter2`
+ * is exactly the fourteen-character password this rule exists to see, and a credential that
+ * contains four spaces and no digit is not a shape any generator produces.
+ */
+const PROSE_SENTENCE = /^(?=(?:\S+\s+){3,}\S)[\p{L}\s'’"“”§:;,.!?()/\-—–&%+*_]+$/u
 
 /**
  * Is this string plausibly a credential rather than a word, a label, or a template?
@@ -163,8 +189,62 @@ const PROSE_VALUE = /^[\p{L}\s'’.,!?()/-]+$/u
 function isCredentialValue(value: string): boolean {
   if (value.length < 6) return false
   if (PLACEHOLDER_VALUE.test(value)) return false
-  if (PROSE_VALUE.test(value)) return false
+  // A `\uXXXX` escape is an ENCODING of one character, not four hex digits of entropy. A JSON file
+  // written with ensure_ascii — which is this portfolio's convention for its declaration files —
+  // spells `§` and `—` that way, and the hex digits were enough to make a paragraph of English read
+  // as a credential. Normalising to a letter cannot weaken detection: a generated secret contains
+  // no `\uXXXX` runs, and anything else in the value is still judged below.
+  const plain = value.replace(/\\u[0-9a-fA-F]{4}/g, 'x')
+  if (PROSE_VALUE.test(plain)) return false
+  if (PROSE_SENTENCE.test(plain)) return false
   return /[^\p{L}]/u.test(value) || value.length >= 16
+}
+
+/**
+ * Is `key` assigned `value` a hardcoded credential? The one judgement both secret-assignment
+ * rules make, quoted and unquoted, so they cannot disagree about what counts.
+ */
+function isHardcodedSecret(key: string, value: string): boolean {
+  if (!SECRET_NAME.test(key)) return false // not a credential-shaped name at all
+  if (UI_STRING_NAME.test(key)) return false // $label_password = "Password"
+  // `publicKeyToken="31bf3856ad364e35"` is the PUBLIC strong-name identifier of a Windows or .NET
+  // component, printed in every unattend.xml and assembly reference. Its name contains `token`
+  // and its value is 16 hex digits, so it read as a credential when testing/ was first scanned
+  // (Weaver, 2026-10-01). Exact name only: `privateKeyToken` and any other `*Token` stay findings.
+  if (/^public[-_]?key[-_]?token$/i.test(key)) return false
+  // PASSWORD_FILE=/run/secrets/… and accessTokenUrl = 'https://…/access_token' name a LOCATION —
+  // unless the value is a URL that carries the credential itself.
+  if (
+    (SECRET_LOCATION_NAME.test(key) || SECRET_LOCATION_NAME_CAMEL.test(key)) &&
+    !URL_CARRIES_CREDENTIAL.test(value)
+  )
+    return false
+  // TOKEN_ENV = 'APP_GITHUB_TOKEN' — the NAME of the variable, not its value. Same class.
+  if (ENV_VAR_NAME_HOLDER.test(key) && ENV_VAR_NAME_VALUE.test(value)) return false
+  // The value is a path, not a secret: absolute, relative, home, a drive letter, or one rooted
+  // at a variable (`"$ROOT/secrets/app.yaml"`, added 2026-09-18, when Gantry's sops wrapper
+  // naming the file it decrypts from was reported as a hardcoded secret). The variable must
+  // START the value and be followed by a separator; the corpus pins both halves.
+  if (/^[./~]|^[A-Za-z]:[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*\//.test(value)) return false
+  if (/^test_/i.test(value)) return false // fixture logins, not credentials
+  // A shell EXPANSION is not a literal — `SECRET="$(openssl rand …)"`, `SECRET="$OTHER"`,
+  // `SECRET=${OTHER}`, `SECRET=`cmd``. This is the one thing a static checker CAN decide with
+  // certainty here, and excluding it cannot weaken literal detection: a literal has no
+  // expansion in it by definition.
+  //
+  // Ported from Weaver 2026-08-13, where the rule flagged a per-run random secret generated
+  // from /dev/urandom. Rewording that line to dodge the regex would have been gaming the
+  // auditor; the value genuinely is not hardcoded, so the rule was wrong.
+  //
+  // Weaver's FIRST attempt was "any dollar sign anywhere", and its corpus rejected it on the
+  // spot: a literal password that merely CONTAINS a dollar is still a literal, and still the
+  // leak this rule exists to catch. Both shapes are in the corpus under "shell expansions are
+  // not literals" — deliberately there and not quoted here, because a credential-shaped string
+  // in source is the thing being forbidden, comment or not.
+  // So the test is for an actual EXPANSION — `$(`, a backtick, `${`, or a value that is
+  // ENTIRELY a bare variable reference — never for the character.
+  if (/\$\(|`|\$\{/.test(value) || /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value)) return false
+  return isCredentialValue(value)
 }
 
 const rules: Rule[] = [
@@ -258,45 +338,38 @@ const rules: Rule[] = [
       /\.example\./,
       /\.sample\./
     ],
-    validate: m => {
-      const key = m[1] ?? m[3] ?? ''
-      const value = m[2] ?? m[4] ?? ''
-      if (!SECRET_NAME.test(key)) return false // not a credential-shaped name at all
-      if (UI_STRING_NAME.test(key)) return false // $label_password = "Password"
-      // PASSWORD_FILE=/run/secrets/… and accessTokenUrl = 'https://…/access_token' name a LOCATION —
-      // unless the value is a URL that carries the credential itself.
-      if (
-        (SECRET_LOCATION_NAME.test(key) || SECRET_LOCATION_NAME_CAMEL.test(key)) &&
-        !URL_CARRIES_CREDENTIAL.test(value)
-      )
-        return false
-      // TOKEN_ENV = 'APP_GITHUB_TOKEN' — the NAME of the variable, not its value. Same class.
-      if (ENV_VAR_NAME_HOLDER.test(key) && ENV_VAR_NAME_VALUE.test(value)) return false
-      // The value is a path, not a secret: absolute, relative, home, a drive letter, or one rooted
-      // at a variable (`"$ROOT/secrets/app.yaml"`, added 2026-09-18, when Gantry's sops wrapper
-      // naming the file it decrypts from was reported as a hardcoded secret). The variable must
-      // START the value and be followed by a separator; the corpus pins both halves.
-      if (/^[./~]|^[A-Za-z]:[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*\//.test(value)) return false
-      if (/^test_/i.test(value)) return false // fixture logins, not credentials
-      // A shell EXPANSION is not a literal — `SECRET="$(openssl rand …)"`, `SECRET="$OTHER"`,
-      // `SECRET=${OTHER}`, `SECRET=`cmd``. This is the one thing a static checker CAN decide with
-      // certainty here, and excluding it cannot weaken literal detection: a literal has no
-      // expansion in it by definition.
-      //
-      // Ported from Weaver 2026-08-13, where the rule flagged a per-run random secret generated
-      // from /dev/urandom. Rewording that line to dodge the regex would have been gaming the
-      // auditor; the value genuinely is not hardcoded, so the rule was wrong.
-      //
-      // Weaver's FIRST attempt was "any dollar sign anywhere", and its corpus rejected it on the
-      // spot: a literal password that merely CONTAINS a dollar is still a literal, and still the
-      // leak this rule exists to catch. Both shapes are in the corpus under "shell expansions are
-      // not literals" — deliberately there and not quoted here, because a credential-shaped string
-      // in source is the thing being forbidden, comment or not.
-      // So the test is for an actual EXPANSION — `$(`, a backtick, `${`, or a value that is
-      // ENTIRELY a bare variable reference — never for the character.
-      if (/\$\(|`|\$\{/.test(value) || /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value)) return false
-      return isCredentialValue(value)
-    }
+    validate: m => isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
+  },
+  {
+    id: 'hardcoded-secret-unquoted',
+    description:
+      'Credential assigned an UNQUOTED literal in a config file — load it from a secret store',
+    severity: 'error',
+    // `hardcoded-secret` above reads a QUOTED value only, and YAML, .env, shell and INI files are
+    // written unquoted as often as not. So `POSTGRES_PASSWORD: app_password` in a committed
+    // docker-compose.yml passed this scan clean on 2026-10-01, in the very file class the
+    // root-level scan below names as "where credentials most often sit". The rule's own comment
+    // said .yml/.env/.sh "matter"; its pattern could not see how those files are written.
+    //
+    // A SEPARATE rule rather than a third branch, because it is only sound in config formats: in
+    // code, `password = readPassword()` is an assignment from a call, not a literal. The judgement
+    // is the same one — `isHardcodedSecret` — so the two rules cannot drift on what counts.
+    //
+    // Two shapes, in this order:
+    //
+    //   1. a WHOLE LINE: an optional `export ` or YAML list dash, a key, `:` or `=`, ONE unquoted
+    //      token, then only a comment. A value with a space in it (`${{ secrets.X }}`,
+    //      `` `cat file` ``, a sentence) does not match, which is the shape of every legitimate
+    //      unquoted value under a credential-shaped key measured across four repos that day.
+    //   2. a SHELL ASSIGNMENT anywhere on the line: `KEY=value` with no space around `=`, ended by
+    //      whitespace, `;`, `&`, `|` or the line's end. That is an env prefix on a command,
+    //      `PGPASSWORD=… psql`, or one line of a `\`-continued block. Shape 1 cannot see either,
+    //      and Gantry's E2E entrypoint passed a fixed JWT secret exactly that way.
+    pattern:
+      /^\s*(?:export\s+|-\s+)?["']?([A-Za-z_][\w.-]*)["']?\s*[:=]\s*([^\s"'#][^\s#]{5,})\s*(?:#.*)?$|(?:^|\s)(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=([^\s"'#\\][^\s;&|]{5,})(?=[\s;&|]|$)/,
+    extensions: ['.yml', '.yaml', '.env', '.sh', '.ini', '.conf'],
+    excludePaths: [/node_modules/, /\.example\./, /\.sample\./],
+    validate: m => isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
   },
   {
     id: 'known-secret-format',
@@ -377,8 +450,53 @@ const rules: Rule[] = [
  * quoted the real leaked passwords verbatim to explain what the old rule missed, and these
  * rules caught it. Exempting the scanner wholesale would have hidden that.
  */
-const SECRET_RULE_IDS = new Set(['hardcoded-secret', 'known-secret-format'])
+const SECRET_RULE_IDS = new Set([
+  'hardcoded-secret',
+  'hardcoded-secret-unquoted',
+  'known-secret-format'
+])
+
+/**
+ * The first match on `line` that the rule's validator accepts. EVERY match is tried.
+ *
+ * This used `line.match(rule.pattern)`, which returns the FIRST match only, and a validator that
+ * rejected it ended the line. So `<connection host="db.example" password="…"/>` passed clean:
+ * `host=` matched first, was not credential-shaped, and the password beside it was never judged.
+ * XML puts several attributes on a line as a matter of course. Found 2026-10-01, when a corpus
+ * case for an exemption could not fail because the line's first attribute shadowed the second.
+ */
+function firstFinding(rule: Rule, line: string): RegExpMatchArray | null {
+  const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`
+  for (const m of line.matchAll(new RegExp(rule.pattern.source, flags))) {
+    if (!rule.validate || rule.validate(m, line)) return m
+  }
+  return null
+}
 const SELF = /scripts\/audit-sast\.ts$/
+
+/**
+ * The `.github` directory of the repository `rootDir` is in: the nearest one at or above it, looking
+ * no higher than the repository root (the first directory holding `.git`). In a checkout without
+ * `.git`, such as a `git archive` export, it looks up to the filesystem root. Null when there is none.
+ */
+function repositoryGithubDir(rootDir: string): string | null {
+  for (let dir = rootDir; ; dir = dirname(dir)) {
+    const candidate = join(dir, '.github')
+    try {
+      if (statSync(candidate).isDirectory()) return candidate
+    } catch {
+      /* none here */
+    }
+    let atRepoRoot = false
+    try {
+      statSync(join(dir, '.git'))
+      atRepoRoot = true
+    } catch {
+      /* not the repository root */
+    }
+    if (atRepoRoot || dirname(dir) === dir) return null
+  }
+}
 
 function walkDir(dir: string, extensions: string[]): string[] {
   const files: string[] = []
@@ -435,10 +553,9 @@ function scanFile(filePath: string, rule: Rule): Finding[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
-    const match = line.match(rule.pattern)
-    if (!match) continue
     if (rule.excludePatterns?.some(p => p.test(line))) continue
-    if (rule.validate && !rule.validate(match, line)) continue
+    const match = firstFinding(rule, line)
+    if (!match) continue
 
     // Suppressed on this line or the one above — and only WITH a stated reason.
     if (suppression.test(line) || (i > 0 && suppression.test(lines[i - 1]))) continue
@@ -505,13 +622,10 @@ function selfTest(): void {
     else ignores++
 
     const subject = line.slice(line.indexOf(' ') + 1)
-    const caught = secretRules.some(rule => {
-      const m = subject.match(rule.pattern)
-      if (!m) return false
-      if (rule.excludePatterns?.some(p => p.test(subject))) return false
-      if (rule.validate && !rule.validate(m, subject)) return false
-      return true
-    })
+    // The scan's own path, `firstFinding`, so the corpus tests what the scan actually does.
+    const caught = secretRules.some(
+      rule => !rule.excludePatterns?.some(p => p.test(subject)) && firstFinding(rule, subject) !== null
+    )
 
     if (expectCatch && !caught) failures.push(`MISSED (should catch):  ${subject}`)
     if (expectIgnore && caught) failures.push(`FALSE POSITIVE:         ${subject}`)
@@ -568,7 +682,18 @@ function main() {
         }
       })
   const NARROW = asDirs(['src', 'backend/src'])
-  const WIDE = asDirs(['src', 'backend/src', 'scripts', 'config', 'tests', 'test', 'public'])
+  // `testing` and the repository's `.github` added 2026-10-01. Every repo built from this archetype
+  // keeps its tests in `testing/`, not `tests/`, and its workflows at the REPOSITORY root, outside
+  // the code directory. So the E2E entrypoints, compose files and fixtures, and every workflow, were
+  // never scanned. The workflows directory is FOUND, not assumed: it sits one level up in Gantry and
+  // Weaver and two in Qepton, and `asDirs` drops a missing directory silently, so a fixed
+  // `'../.github'` would have scanned nothing in Qepton and still reported clean.
+  const githubDir = repositoryGithubDir(rootDir)
+  const WIDE = [
+    ...asDirs(['src', 'backend/src', 'scripts', 'config', 'testing', 'tests', 'test', 'public']),
+    ...(githubDir ? [githubDir] : [])
+  ]
+
 
   const allExtensions = [...new Set(rules.flatMap(r => r.extensions))]
   const narrowFiles = NARROW.flatMap(d => walkDir(d, allExtensions))
