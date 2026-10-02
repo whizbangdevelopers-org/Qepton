@@ -338,7 +338,8 @@ const rules: Rule[] = [
       /\.example\./,
       /\.sample\./
     ],
-    validate: m => isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
+    validate: (m, line) =>
+      !keyInsideQuotedString(m, line) && isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
   },
   {
     id: 'hardcoded-secret-unquoted',
@@ -466,11 +467,40 @@ const SECRET_RULE_IDS = new Set([
  * case for an exemption could not fail because the line's first attribute shadowed the second.
  */
 function firstFinding(rule: Rule, line: string): RegExpMatchArray | null {
+  // Not `matchAll`: its matches never overlap, so a match `validate` rejected swallowed every match
+  // that began inside it. In `echo 'host:' x; DB_PASSWORD='…'` the rejected `host` match runs from
+  // the first quote to the third, and the assignment inside it was never tried (2026-10-02).
+  //
+  // After a rejection the scan resumes past the quote and identifier the match began on, never
+  // inside them. One character on was tried first and failed its corpus: a rejected
+  // `publicKeyToken` was retried as `ublicKeyToken`, a name no exemption covers.
   const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`
-  for (const m of line.matchAll(new RegExp(rule.pattern.source, flags))) {
+  const re = new RegExp(rule.pattern.source, flags)
+  for (let m = re.exec(line); m; m = re.exec(line)) {
     if (!rule.validate || rule.validate(m, line)) return m
+    const began = /^["']?[\w$-]*/.exec(line.slice(m.index))![0].length
+    re.lastIndex = m.index + Math.max(1, began)
   }
   return null
+}
+
+/**
+ * `'setPasswordLinkHours:' /srv/app/policy.ts … '…'` is a quoted STRING that ends in a colon, not an
+ * assignment: the quote after the colon closes the string the key began in. The assignment branch
+ * read it as a key and a quoted value, and flagged prose as a credential (Gantry, 2026-10-02: a
+ * handoff's grep pattern for a setting that holds a number of hours). So a key that a quote opens,
+ * with no closing quote of its own before the separator, where the separator is followed by that
+ * same quote, is inside a string. A properly quoted key (`'password': '…'`) and a different quote
+ * (`'PASS="…"'`, an assignment inside a shell string) both stay findings; the corpus pins both.
+ */
+function keyInsideQuotedString(m: RegExpMatchArray, line: string): boolean {
+  const key = m[3]
+  if (key === undefined || m.index === undefined) return false
+  const keyStart = m.index + m[0].indexOf(key)
+  const open = line[keyStart - 1]
+  if (open !== '"' && open !== "'") return false
+  const after = /^(["']?)\s*(?:=>|[:=])\s*(["'])/.exec(line.slice(keyStart + key.length))
+  return after !== null && after[1] !== open && after[2] === open
 }
 const SELF = /scripts\/audit-sast\.ts$/
 
