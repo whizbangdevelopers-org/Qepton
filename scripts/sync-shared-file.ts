@@ -35,11 +35,14 @@
  * manifest as it stood BEFORE the manifest was synced. So a requested manifest is now synced first,
  * and the remaining requests are read against the result.
  *
- * A file MISSING here is copied whole; its licence line is then whatever upstream had, which is
+ * A file MISSING here is copied whole; its licence line is then upstream's placeholder, which is
  * wrong for this repo — so the run tells you to finish with `audit:license-headers --apply`,
  * which is the tool that owns that question. This one deliberately does not re-implement it.
+ * Where this repo has no such tool, the placeholder is replaced with the one identifier
+ * package.json's `license` declares, and the copy is refused when it declares none
+ * (`licenceForCopy`).
  */
-import { readFileSync, writeFileSync, existsSync, statSync, chmodSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, statSync, chmodSync, mkdirSync } from 'node:fs'
 import { join, dirname, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
@@ -149,6 +152,66 @@ export function graft(upstreamBody: string, localBody: string): string | null {
   return out
 }
 
+/** The archetype's licence placeholder, which `audit:license-headers` replaces in a scaffolded repo. */
+const LICENCE_PLACEHOLDER = '{{LICENSE_IDENTIFIER}}'
+
+/**
+ * What a file copied WHOLE should carry as its licence line here. Pure, so the self-test pins it.
+ *
+ *   'defer'    — this repo has `audit:license-headers`, which owns the question (a repo may declare
+ *                a licence per path, and only that tool reads the declaration)
+ *   { body }   — the placeholder replaced with the single identifier package.json declares, on the
+ *                licence line and nowhere else; or the upstream body as is, when it has no
+ *                placeholder to replace
+ *   { refuse } — a placeholder would ship, and nothing here says what replaces it
+ *
+ * The copy used to always defer, with a note to run `audit:license-headers --apply`. Qepton has no
+ * such tool, so on 2026-10-02 four files reached it carrying the archetype's placeholder, and the
+ * note named a command that does not exist there. A deferral to another tool is a claim about the
+ * destination; it is checked here instead of assumed.
+ */
+export function licenceForCopy(
+  upstreamBody: string,
+  here: { hasStamper: boolean; declared: unknown }
+): 'defer' | { body: string; licence?: string } | { refuse: string } {
+  const line = extractPerRepoLines(upstreamBody).licence
+  if (!line?.includes(LICENCE_PLACEHOLDER)) return { body: upstreamBody }
+  if (here.hasStamper) return 'defer'
+  const id = here.declared
+  // One SPDX identifier, read as declared. `SEE LICENSE IN …` names no identifier, and UNLICENSED
+  // means proprietary, whose header is a different line rather than "Licensed under UNLICENSED".
+  if (typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9.+-]*$/.test(id) || id === 'UNLICENSED') {
+    return {
+      refuse:
+        `upstream's licence line is the archetype's ${LICENCE_PLACEHOLDER}, this repo has no ` +
+        'audit:license-headers to replace it, and package.json "license" declares no single ' +
+        `identifier (${JSON.stringify(id ?? null)}) — nothing was copied`
+    }
+  }
+  const body = upstreamBody.replace(line, line.replace(LICENCE_PLACEHOLDER, id))
+  // Only the header line may differ. A fixture or a docblock quoting the placeholder further down
+  // is content, and the comparison form could not see a change to it: it rewrites every licence
+  // line alike. So the check is line by line, against upstream.
+  const a = upstreamBody.split('\n')
+  const b = body.split('\n')
+  const changed = b.filter((l, i) => l !== a[i]).length
+  if (a.length !== b.length || changed !== 1) {
+    return { refuse: `substituting the licence identifier changed ${changed} lines, not 1` }
+  }
+  return { body, licence: id }
+}
+
+/** This repo's declared licence: package.json's `license`, or undefined when it has none. */
+function declaredLicence(): unknown {
+  try {
+    return (
+      JSON.parse(readFileSync(join(REPO_CODE, 'package.json'), 'utf-8')) as { license?: unknown }
+    ).license
+  } catch {
+    return undefined
+  }
+}
+
 interface Finding {
   path: string
   state: 'forked' | 'missing' | 'no-upstream'
@@ -212,10 +275,29 @@ function apply(templateRoot: string, f: Finding): { ok: boolean; note: string } 
   const upstreamBody = readFileSync(upstreamPath, 'utf-8')
 
   if (f.state === 'missing') {
-    writeFileSync(localPath, upstreamBody)
+    // The PARENT may be missing too. A newly shared file in a directory this repo has never had
+    // (`code/.githooks/lib/restage.sh`, 2026-10-01) died here with ENOENT and a stack trace, so a
+    // declared row could not be brought in by the one tool that exists to bring it in.
+    const decided = licenceForCopy(upstreamBody, {
+      hasStamper: existsSync(join(SCRIPT_DIR, 'verify-license-headers.ts')),
+      declared: declaredLicence()
+    })
+    if (typeof decided === 'object' && 'refuse' in decided)
+      return { ok: false, note: decided.refuse }
+    mkdirSync(dirname(localPath), { recursive: true })
+    writeFileSync(localPath, decided === 'defer' ? upstreamBody : decided.body)
     // The MODE travels with the file. writeFileSync creates 0644, so an executable script arrived
     // non-executable — measured 2026-09-16 on run-root-self-tests.sh, tracked 100755 upstream.
     chmodSync(localPath, statSync(upstreamPath).mode & 0o777)
+    if (decided !== 'defer') {
+      return {
+        ok: true,
+        note: decided.licence
+          ? `copied whole; its licence line names ${decided.licence}, from package.json "license" ` +
+            '(this repo has no audit:license-headers)'
+          : 'copied whole; it carries no licence placeholder'
+      }
+    }
     // `git add` FIRST, and that ordering is not a nicety. verify-license-headers derives its file
     // set from `git ls-files`, deliberately — a header asserts authorship over distributed source,
     // so untracked build output must never be stamped. The consequence here is that a file this
@@ -442,6 +524,61 @@ function selfTest(): number {
   t(
     'no request at all is not an undeclared request',
     classifyRequests([], declared, new Set()).undeclared.length === 0
+  )
+
+  // ── A FILE COPIED WHOLE: whose licence line it carries (2026-10-02) ───────────────────────────
+  // Qepton has no audit:license-headers, so the note to run it left the placeholder in place.
+  const UP_FIXTURE =
+    UP + "const fixture = '// Licensed under {{LICENSE_IDENTIFIER}}. See LICENSE.'\n"
+  const none = { hasStamper: false }
+  kind = 'catch'
+  const c1 = licenceForCopy(UP, { ...none, declared: 'MIT' })
+  t(
+    'no stamper here: the placeholder becomes the identifier package.json declares',
+    typeof c1 === 'object' &&
+      'body' in c1 &&
+      c1.body.includes('// Licensed under MIT. See LICENSE.') &&
+      !c1.body.includes('{{LICENSE_IDENTIFIER}}')
+  )
+  const c2 = licenceForCopy(UP_FIXTURE, { ...none, declared: 'MIT' })
+  t(
+    'only the header line changes: a quoted placeholder further down is content',
+    typeof c2 === 'object' &&
+      'body' in c2 &&
+      c2.body.split('\n').filter(l => l.includes('{{LICENSE_IDENTIFIER}}')).length === 1
+  )
+  t(
+    'no stamper and "SEE LICENSE IN LICENSE" → refused, nothing copied',
+    (() => {
+      const r = licenceForCopy(UP, { ...none, declared: 'SEE LICENSE IN LICENSE' })
+      return typeof r === 'object' && 'refuse' in r
+    })()
+  )
+  t(
+    'no stamper and UNLICENSED → refused (proprietary has its own line)',
+    (() => {
+      const r = licenceForCopy(UP, { ...none, declared: 'UNLICENSED' })
+      return typeof r === 'object' && 'refuse' in r
+    })()
+  )
+  t(
+    'no stamper and no "license" at all → refused',
+    (() => {
+      const r = licenceForCopy(UP, { ...none, declared: undefined })
+      return typeof r === 'object' && 'refuse' in r
+    })()
+  )
+  kind = 'ignore'
+  t(
+    'a repo with audit:license-headers defers to it, whatever package.json says',
+    licenceForCopy(UP, { hasStamper: true, declared: 'SEE LICENSE IN LICENSE' }) === 'defer'
+  )
+  t(
+    'a file with no licence line is copied as is, even with nothing declared',
+    (() => {
+      const r = licenceForCopy('# data\nrow\n', { ...none, declared: undefined })
+      return typeof r === 'object' && 'body' in r && r.body === '# data\nrow\n'
+    })()
   )
 
   console.log(`\nauditor-contract: catch=${seen.catch} ignore=${seen.ignore}`)
