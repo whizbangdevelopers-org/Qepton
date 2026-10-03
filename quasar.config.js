@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deriveViteAliases } from './quasar.aliases.js'
+import { configureDepOptimizer } from './quasar.scan.js'
 
 // app-vite 3 loads only quasar.config.js (ESM) or .ts; the .cjs form is not recognised
 // at all and is reported as "not a Quasar project folder".
@@ -130,6 +131,9 @@ export default function (ctx) {
       extendViteConf (viteConf) {
         viteConf.define = viteConf.define || {}
         viteConf.define.__APP_VERSION__ = JSON.stringify(packageJson.version)
+        // The dev server's dependency scan starts from Quasar's generated entry, not from an
+        // index.html with no script tag (quasar.scan.js, shared with the archetype, says why).
+        configureDepOptimizer(viteConf)
       }
     },
 
