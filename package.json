@@ -33,6 +33,7 @@
     "validate:pwa": "bash scripts/validate-pwa-api.sh",
     "clean": "rm -rf node_modules/.vite .quasar .q-cache 2>/dev/null; echo 'Cleared caches'",
     "audit:command-cwd": "npx tsx scripts/verify-command-cwd.ts",
+    "audit:install-scripts": "npx tsx scripts/verify-install-scripts.ts",
     "audit:sast": "npx tsx scripts/audit-sast.ts",
     "audit:template-divergence": "npx tsx scripts/audit-template-divergence.ts",
     "sync:shared": "npx tsx scripts/sync-shared-file.ts",
