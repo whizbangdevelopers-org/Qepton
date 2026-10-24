@@ -558,8 +558,9 @@ function walkDir(dir: string, extensions: string[]): string[] {
  *
  *     // sast-ignore[hardcoded-secret]: <why this is not a real finding>
  *
- * on the offending line or the one above it. ~/.claude/rules/never-game-auditors.md already
- * names this convention and calls a bare `sast-ignore[rule-id]` — one with no justification —
+ * where `suppressedAt` reads it: the offending line, the comment block or line above it, or above
+ * the opening tag of the element it sits in. ~/.claude/rules/never-game-auditors.md already
+ * * names this convention and calls a bare `sast-ignore[rule-id]` — one with no justification —
  * a form of gaming. It was never actually implemented, which is worse than it sounds: with no
  * legitimate way past a false positive, the only escape is to reword the code until the regex
  * stops matching, which is precisely the behaviour that rule forbids. The pattern below will
@@ -576,10 +577,15 @@ function suppressionFor(ruleId: string): RegExp {
  * template element writes its attributes one per line, and no comment can sit inside a tag, so
  * until 2026-10-24 a `v-html` in such an element had no way to be suppressed at all. Measured in
  * Qepton, where both of a gist preview's reasoned `v-html` suppressions sat above their element and
- * were not read. `SUPPRESSION_CASES` pins it.
+ * were not read. A reason written over a comment block directly above counts too, wherever in the
+ * block the marker is: Weaver's `microvm.ts` explains two in four lines. `SUPPRESSION_CASES` pins it.
  */
 function suppressedAt(lines: readonly string[], i: number, suppression: RegExp): boolean {
   if (suppression.test(lines[i]!) || (i > 0 && suppression.test(lines[i - 1]!))) return true
+  // The comment block directly above, line by line, until a line that is not a comment.
+  for (let k = i - 1; k >= 0 && /^\s*(\/\/|\/?\*|<!--|#)/.test(lines[k]!); k--) {
+    if (suppression.test(lines[k]!)) return true
+  }
   // Up from the finding to the line its tag opens on, never past a line that closes a tag.
   for (let k = i - 1; k >= 0 && k >= i - 30; k--) {
     const above = lines[k]!
@@ -598,6 +604,27 @@ const SUPPRESSION_CASES: { lines: string[]; at: number; suppressed: boolean; why
     lines: ['// sast-ignore[v-html-xss]: escaped upstream', 'x.innerHTML = y'],
     at: 1,
     suppressed: true
+  },
+  {
+    why: 'a reason written over the comment block directly above',
+    lines: [
+      '    // sast-ignore[v-html-xss]: `html` is escaped by highlight(), which',
+      '    // reads every character of the source and writes none of it raw, so',
+      '    // nothing a user types reaches this element as markup.',
+      '    el.innerHTML = html'
+    ],
+    at: 3,
+    suppressed: true
+  },
+  {
+    why: 'a comment block that code separates from the finding does not reach it',
+    lines: [
+      '// sast-ignore[v-html-xss]: about the next line only',
+      'a.innerHTML = escaped',
+      'b.innerHTML = untrusted'
+    ],
+    at: 2,
+    suppressed: false
   },
   {
     why: 'above the opening tag of a multi-line element',
