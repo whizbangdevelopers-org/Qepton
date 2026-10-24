@@ -70,14 +70,7 @@
             >
               <q-tooltip>{{ isPinned ? 'Unpin' : 'Pin' }}</q-tooltip>
             </q-btn>
-            <q-btn
-              flat
-              dense
-              round
-              icon="share"
-              @click="handleShare"
-              data-test="share-gist-btn"
-            >
+            <q-btn flat dense round icon="share" @click="handleShare" data-test="share-gist-btn">
               <q-tooltip>Copy link to clipboard</q-tooltip>
             </q-btn>
             <q-btn
@@ -202,7 +195,9 @@
                   icon="auto_fix_high"
                   size="sm"
                   :loading="formattingFile === String(filename)"
-                  @click.stop="handleFormatFile(String(filename), file.content, file.language ?? undefined)"
+                  @click.stop="
+                    handleFormatFile(String(filename), file.content, file.language ?? undefined)
+                  "
                   data-test="format-code-button"
                 >
                   <q-tooltip>Format & Copy</q-tooltip>
@@ -228,12 +223,14 @@
                 <pre class="raw-content">{{ file.content || '(empty)' }}</pre>
               </template>
               <template v-else>
+                <!-- sast-ignore[v-html-xss]: renderMarkdown is markdown-it with html:false, which escapes a gist's raw HTML and refuses javascript: links; testing/unit/services/markdown.spec.ts proves it -->
                 <div
                   v-if="isMarkdownFile(String(filename))"
                   class="markdown-preview q-pa-md"
                   data-test="markdown-preview"
                   v-html="renderMarkdown(file.content || '')"
                 />
+                <!-- sast-ignore[v-html-xss]: renderNotebook escapes every value from the notebook and sanitizes text/html output with DOMPurify; testing/unit/services/jupyter.spec.ts proves it -->
                 <div
                   v-else-if="isJupyterFile(String(filename))"
                   class="jupyter-preview q-pa-md"

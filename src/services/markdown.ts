@@ -98,6 +98,7 @@ export function stripMarkdown(markdown: string): string {
 
   // Create a temporary DOM element to extract text
   const temp = document.createElement('div')
+  // sast-ignore[innerhtml-xss]: html is renderMarkdown's, html:false, so it holds no element the markdown wrote; testing/unit/services/markdown.spec.ts proves it
   temp.innerHTML = html
 
   return temp.textContent || temp.innerText || ''

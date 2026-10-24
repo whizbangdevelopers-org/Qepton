@@ -423,7 +423,11 @@ const rules: Rule[] = [
     id: 'prototype-pollution',
     description: 'Bracket notation assignment with dynamic key — prototype pollution risk',
     severity: 'warning',
-    pattern: /\[\s*(req\.(params|query|body)\.|input|key|prop)\s*[^\]]*\]\s*=/,
+    // A member access (`obj[key] =`), so the `[` follows a name, `]` or `)`, and an assignment,
+    // so not `==` or `===`. Until 2026-10-24 the `[` could follow anything, and the array
+    // destructuring `const [keys, counts] = …` was reported as bracket assignment in Gantry and
+    // Weaver. The archetype's fix (quasar-project-template b92f93c); `PATTERN_CASES` pins both halves.
+    pattern: /[\w$\])]\[\s*(req\.(params|query|body)\.|input|key|prop)\s*[^\]]*\]\s*=(?!=)/,
     extensions: ['.ts', '.js'],
     excludePaths: [/node_modules/, /\.spec\.ts$/]
   },
@@ -566,6 +570,68 @@ function suppressionFor(ruleId: string): RegExp {
   return new RegExp(`sast-ignore\\[${id}\\]:\\s*\\S+`, 'i')
 }
 
+/**
+ * Whether the finding on `lines[i]` is suppressed: on its line or the one above, or, for a finding
+ * on an attribute inside a tag that spans lines, on the tag's first line or the one above it. A
+ * template element writes its attributes one per line, and no comment can sit inside a tag, so
+ * until 2026-10-24 a `v-html` in such an element had no way to be suppressed at all. Measured in
+ * Qepton, where both of a gist preview's reasoned `v-html` suppressions sat above their element and
+ * were not read. `SUPPRESSION_CASES` pins it.
+ */
+function suppressedAt(lines: readonly string[], i: number, suppression: RegExp): boolean {
+  if (suppression.test(lines[i]!) || (i > 0 && suppression.test(lines[i - 1]!))) return true
+  // Up from the finding to the line its tag opens on, never past a line that closes a tag.
+  for (let k = i - 1; k >= 0 && k >= i - 30; k--) {
+    const above = lines[k]!
+    if (/^\s*</.test(above) && !/>/.test(above.replace(/^\s*<[^\s>]*/, ''))) {
+      return suppression.test(above) || (k > 0 && suppression.test(lines[k - 1]!))
+    }
+    if (/>/.test(above)) return false
+  }
+  return false
+}
+
+/** Paired cases for `suppressedAt`, asserted in selfTest. */
+const SUPPRESSION_CASES: { lines: string[]; at: number; suppressed: boolean; why: string }[] = [
+  {
+    why: 'the line above the finding',
+    lines: ['// sast-ignore[v-html-xss]: escaped upstream', 'x.innerHTML = y'],
+    at: 1,
+    suppressed: true
+  },
+  {
+    why: 'above the opening tag of a multi-line element',
+    lines: [
+      '<!-- sast-ignore[v-html-xss]: markdown-it with html:false -->',
+      '<div',
+      '  v-if="shown"',
+      '  class="preview"',
+      '  v-html="rendered"',
+      '/>'
+    ],
+    at: 4,
+    suppressed: true
+  },
+  {
+    why: 'a bare suppression, with no reason, never counts',
+    lines: ['<!-- sast-ignore[v-html-xss] -->', '<div', '  v-html="rendered"', '/>'],
+    at: 2,
+    suppressed: false
+  },
+  {
+    why: "an earlier element's suppression does not reach past where that element closes",
+    lines: [
+      '<!-- sast-ignore[v-html-xss]: the first one is escaped -->',
+      '<div',
+      '  v-html="first"',
+      '/>',
+      '<div v-html="second" />'
+    ],
+    at: 4,
+    suppressed: false
+  }
+]
+
 function scanFile(filePath: string, rule: Rule): Finding[] {
   const relPath = relative(process.cwd(), filePath)
 
@@ -587,8 +653,9 @@ function scanFile(filePath: string, rule: Rule): Finding[] {
     const match = firstFinding(rule, line)
     if (!match) continue
 
-    // Suppressed on this line or the one above — and only WITH a stated reason.
-    if (suppression.test(line) || (i > 0 && suppression.test(lines[i - 1]))) continue
+    // Suppressed on this line or the one above, or above its tag (`suppressedAt`), and only WITH a
+    // stated reason.
+    if (suppressedAt(lines, i, suppression)) continue
 
     // NEVER echo a secret into CI logs — that just relocates the leak. Report the identifier
     // and the location, which is everything a human needs to go fix it, and nothing an
@@ -625,6 +692,29 @@ function scanFile(filePath: string, rule: Rule): Finding[] {
  * MUST-CATCH line stops matching or a MUST-IGNORE line starts, this exits non-zero and says
  * so, rather than scanning the repo and reporting a clean bill of health it cannot back up.
  */
+/**
+ * Paired cases for the code-pattern rules, asserted beside the secret corpus. The secret corpus is
+ * a contract shared byte-identical across repos; these rules are each repo's own, so their cases
+ * live with them. Each half was measured: the IGNORE lines are what the rule wrongly reported.
+ */
+const PATTERN_CASES: { rule: string; catch: string[]; ignore: string[] }[] = [
+  {
+    rule: 'prototype-pollution',
+    catch: [
+      'out[key] = toJsonSchema(value)',
+      ';(node as Record<string, unknown>)[key] = value',
+      'target[req.body.name] = value',
+      'alias[key.slice(0, -2)] = join(base, target)'
+    ],
+    ignore: [
+      'const [keys, counts] = await Promise.all([keysOf(a), counts(ids)])',
+      'const [key, value] = line.trim().split(/\\s+/)',
+      'if (seen[key] === value) return',
+      'if (cache[key] == null) return'
+    ]
+  }
+]
+
 function selfTest(): void {
   const corpusPath = join(SCRIPT_DIR, 'fixtures', 'sast-secret-corpus.txt')
   let corpus: string
@@ -654,11 +744,37 @@ function selfTest(): void {
     const subject = line.slice(line.indexOf(' ') + 1)
     // The scan's own path, `firstFinding`, so the corpus tests what the scan actually does.
     const caught = secretRules.some(
-      rule => !rule.excludePatterns?.some(p => p.test(subject)) && firstFinding(rule, subject) !== null
+      rule =>
+        !rule.excludePatterns?.some(p => p.test(subject)) && firstFinding(rule, subject) !== null
     )
 
     if (expectCatch && !caught) failures.push(`MISSED (should catch):  ${subject}`)
     if (expectIgnore && caught) failures.push(`FALSE POSITIVE:         ${subject}`)
+  }
+
+  for (const c of SUPPRESSION_CASES) {
+    if (c.suppressed) catches++
+    else ignores++
+    if (suppressedAt(c.lines, c.at, suppressionFor('v-html-xss')) !== c.suppressed) {
+      failures.push(`SUPPRESSION ${c.suppressed ? 'MISSED' : 'WRONGLY READ'}: ${c.why}`)
+    }
+  }
+
+  for (const c of PATTERN_CASES) {
+    const rule = rules.find(r => r.id === c.rule)
+    if (!rule) {
+      failures.push(`NO SUCH RULE:           ${c.rule}`)
+      continue
+    }
+    for (const subject of c.catch) {
+      catches++
+      if (firstFinding(rule, subject) === null) failures.push(`MISSED [${c.rule}]:  ${subject}`)
+    }
+    for (const subject of c.ignore) {
+      ignores++
+      if (firstFinding(rule, subject) !== null)
+        failures.push(`FALSE POSITIVE [${c.rule}]: ${subject}`)
+    }
   }
 
   if (failures.length > 0) {
@@ -723,7 +839,6 @@ function main() {
     ...asDirs(['src', 'backend/src', 'scripts', 'config', 'testing', 'tests', 'test', 'public']),
     ...(githubDir ? [githubDir] : [])
   ]
-
 
   const allExtensions = [...new Set(rules.flatMap(r => r.extensions))]
   const narrowFiles = NARROW.flatMap(d => walkDir(d, allExtensions))

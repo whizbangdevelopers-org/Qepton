@@ -23,24 +23,14 @@
         />
       </div>
       <template v-slot:action>
-        <q-btn
-          flat
-          color="white"
-          label="Install & Restart"
-          @click="installUpdate"
-        />
-        <q-btn
-          flat
-          color="white"
-          label="Later"
-          @click="uiStore.dismissUpdate"
-        />
+        <q-btn flat color="white" label="Install & Restart" @click="installUpdate" />
+        <q-btn flat color="white" label="Later" @click="uiStore.dismissUpdate" />
       </template>
     </q-banner>
 
     <!-- Release Notes Dialog -->
     <q-dialog v-model="showReleaseNotes">
-      <q-card style="min-width: 400px; max-width: 600px;">
+      <q-card style="min-width: 400px; max-width: 600px">
         <q-card-section class="row items-center">
           <div class="text-h6">What's New in v{{ uiStore.updateInfo?.version }}</div>
           <q-space />
@@ -48,6 +38,7 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="release-notes-content">
+          <!-- sast-ignore[v-html-xss]: releaseNotesHtml sanitizes with DOMPurify's html profile last; testing/unit/services/release-notes.spec.ts proves script and handlers are dropped -->
           <div v-html="formattedReleaseNotes"></div>
         </q-card-section>
         <q-card-actions align="right">
@@ -61,11 +52,7 @@
     <q-header v-if="!uiStore.immersiveMode" elevated>
       <q-toolbar>
         <div class="logo-container">
-          <img
-            :src="logoUrl"
-            alt="Qepton"
-            class="toolbar-logo"
-          />
+          <img :src="logoUrl" alt="Qepton" class="toolbar-logo" />
         </div>
 
         <q-space />
@@ -196,6 +183,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useUIStore } from 'src/stores/ui'
 import { useGistsStore } from 'src/stores/gists'
+import { releaseNotesHtml } from 'src/services/release-notes'
 import { themeService } from 'src/services/theme'
 import logoUrl from 'src/assets/images/logos/qepton-wordmark.svg'
 import NavigationPanel from 'src/components/NavigationPanel.vue'
@@ -225,22 +213,8 @@ const showReleaseNotes = ref(false)
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'
 const isElectron = typeof window !== 'undefined' && 'electronAPI' in window
 
-// Format release notes (handle markdown-ish content from GitHub)
-const formattedReleaseNotes = computed(() => {
-  const notes = uiStore.updateInfo?.releaseNotes
-  if (!notes) return ''
-  // Basic markdown-like formatting
-  return notes
-    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^\* (.+)$/gm, '<li>$1</li>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n\n/g, '<br><br>')
-})
+// The update's release notes: HTML from GitHub's releases feed, sanitized (`release-notes.ts`).
+const formattedReleaseNotes = computed(() => releaseNotesHtml(uiStore.updateInfo?.releaseNotes))
 
 // Install update (Electron only)
 function installUpdate() {
