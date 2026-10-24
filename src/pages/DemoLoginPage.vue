@@ -2,11 +2,7 @@
   <q-page class="flex flex-center login-page">
     <q-card class="login-card">
       <q-card-section class="text-center logo-section">
-        <img
-          :src="logoUrl"
-          alt="Qepton"
-          class="login-logo"
-        />
+        <img :src="logoUrl" alt="Qepton" class="login-logo" />
         <div class="text-subtitle1 text-grey-7 q-mt-sm">Demo Playground</div>
       </q-card-section>
 
@@ -19,9 +15,7 @@
           Explore a fully functional demo with real prompts and code snippets.<br />
           Create, edit, and organize your own - it's all yours to play with!
         </p>
-        <p class="text-caption text-grey-6 q-mt-sm">
-          Fresh content every Sunday
-        </p>
+        <p class="text-caption text-grey-6 q-mt-sm">Fresh content every Sunday</p>
       </q-card-section>
 
       <q-card-section>
@@ -82,7 +76,6 @@
         />
         <p class="gracious-reminder q-mt-md">Be a Gracious User</p>
       </q-card-section>
-
     </q-card>
   </q-page>
 </template>
@@ -162,6 +155,7 @@ function renderCaptcha() {
   const container = document.getElementById('hcaptcha')
   if (container && window.hcaptcha) {
     // Clear any existing widget
+    // sast-ignore[innerhtml-xss]: assigns the empty string, which only removes the old widget
     container.innerHTML = ''
     // Render fresh widget
     window.hcaptcha.render(container, {
@@ -262,5 +256,4 @@ async function enterDemo() {
   font-weight: 400;
   font-size: 26px;
 }
-
 </style>
