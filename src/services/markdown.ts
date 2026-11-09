@@ -6,6 +6,13 @@
 import MarkdownIt from 'markdown-it'
 import MdTaskList from 'markdown-it-task-lists'
 import MdKatex from '@vscode/markdown-it-katex'
+// KaTeX writes each formula twice, as MathML and as HTML, and only this stylesheet hides the
+// MathML copy and lays out the HTML one. It was never loaded until 2026-11-08, so every formula
+// showed twice and the second copy came out flat ("x2 + y2 = z2", a fraction as "ba"), measured
+// in Chromium against this file's own markdown-it setup. The plugin uses the same katex as this
+// import, through the "$katex" override in package.json, so the markup and the stylesheet that
+// styles it cannot drift apart: since 0.18.0 KaTeX prefixes its class names.
+import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js'
 
 /**

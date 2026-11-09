@@ -4,8 +4,16 @@
 
 set -e
 
-ICONS_DIR="src-electron/icons"
-CONFIG_FILE="quasar.config.cjs"
+# Anchored on this script, never on the caller's cwd: the pre-commit hook runs it from the repo
+# root, where src-electron/icons does not exist. The config is quasar.config.js since app-vite 3
+# (2026-08-17); this read quasar.config.cjs until 2026-11-08.
+#
+# Counters use x=$((x + 1)), never ((x++)): ((x++)) evaluates to the OLD value, so the first
+# increment from 0 returns status 1 and `set -e` ended the script at the first finding, with no
+# summary, from either directory (measured 2026-11-08).
+PKG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ICONS_DIR="$PKG/src-electron/icons"
+CONFIG_FILE="$PKG/quasar.config.js"
 REQUIRED_SIZES=(16 32 48 64 128 256 512)
 
 RED='\033[0;31m'
@@ -32,7 +40,7 @@ for size in "${REQUIRED_SIZES[@]}"; do
     echo -e "  ${GREEN}✓${NC} ${size}x${size}.png"
   else
     echo -e "  ${RED}✗${NC} Missing: ${size}x${size}.png"
-    ((errors++))
+    errors=$((errors + 1))
   fi
 done
 
@@ -42,16 +50,23 @@ for icon in "icon.icns" "icon.ico" "icon.png"; do
     echo -e "  ${GREEN}✓${NC} $icon"
   else
     echo -e "  ${RED}✗${NC} Missing: $icon"
-    ((errors++))
+    errors=$((errors + 1))
   fi
 done
 
 echo ""
 
 # ----------------------------------------
-# Validate quasar.config.cjs settings
+# Validate quasar.config.js settings
 # ----------------------------------------
-echo "Checking quasar.config.cjs..."
+echo "Checking quasar.config.js..."
+
+# A config that cannot be read is an error. Every check below greps it with 2>/dev/null, so a
+# missing file used to surface only as a list of unrelated-looking failures and one "?".
+if [[ ! -r "$CONFIG_FILE" ]]; then
+  echo -e "  ${RED}✗${NC} Cannot read $CONFIG_FILE"
+  errors=$((errors + 1))
+fi
 
 # linux.icon should be directory (not single file)
 if grep -q "icon: 'src-electron/icons'" "$CONFIG_FILE" 2>/dev/null; then
@@ -61,10 +76,10 @@ else
     echo -e "  ${RED}✗${NC} linux.icon should be directory, not single file"
     echo "      Change: icon: 'src-electron/icons/icon.png'"
     echo "      To:     icon: 'src-electron/icons'"
-    ((errors++))
+    errors=$((errors + 1))
   else
     echo -e "  ${YELLOW}?${NC} Could not verify linux.icon setting"
-    ((warnings++))
+    warnings=$((warnings + 1))
   fi
 fi
 
@@ -73,7 +88,7 @@ if grep -q "Icon: 'qepton'" "$CONFIG_FILE" 2>/dev/null; then
   echo -e "  ${GREEN}✓${NC} desktop.Icon field present"
 else
   echo -e "  ${RED}✗${NC} desktop.Icon field missing (should be 'qepton')"
-  ((errors++))
+  errors=$((errors + 1))
 fi
 
 # executableName
@@ -81,7 +96,7 @@ if grep -q "executableName: 'qepton'" "$CONFIG_FILE" 2>/dev/null; then
   echo -e "  ${GREEN}✓${NC} executableName set"
 else
   echo -e "  ${RED}✗${NC} executableName missing or incorrect"
-  ((errors++))
+  errors=$((errors + 1))
 fi
 
 # StartupWMClass
@@ -89,7 +104,7 @@ if grep -q "StartupWMClass:" "$CONFIG_FILE" 2>/dev/null; then
   echo -e "  ${GREEN}✓${NC} StartupWMClass present"
 else
   echo -e "  ${RED}✗${NC} StartupWMClass missing"
-  ((errors++))
+  errors=$((errors + 1))
 fi
 
 echo ""
@@ -109,7 +124,7 @@ if command -v identify &> /dev/null; then
         echo -e "  ${GREEN}✓${NC} ${size}x${size}.png is ${actual}"
       else
         echo -e "  ${RED}✗${NC} ${size}x${size}.png is ${actual} (should be ${expected})"
-        ((errors++))
+        errors=$((errors + 1))
       fi
     fi
   done

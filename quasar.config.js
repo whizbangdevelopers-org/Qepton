@@ -1,5 +1,3 @@
-/* eslint-env node */
-
 // Configuration for Quasar app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
 
@@ -304,12 +302,19 @@ export default function (ctx) {
           category: 'Development',
           target: ['AppImage', 'deb', 'rpm'],
           executableName: 'qepton',
+          // electron-builder 26 reads [Desktop Entry] keys from desktop.entry and refuses the whole
+          // build when they sit directly under desktop. With them there, build:electron failed
+          // schema validation on 2026-11-08 (26.15.3); no push gate runs that build.
+          //
+          // No Comment or Categories here: electron-builder writes those last, from linux.description
+          // and linux.category in this block, over anything in desktop.entry (LinuxTargetHelper).
+          // The two that sat here were absent from the .deb's qepton.desktop on 2026-11-08.
           desktop: {
-            Name: 'Qepton',
-            Icon: 'qepton',
-            Comment: 'Prompt and Code Snippet Manager powered by GitHub Gist',
-            Categories: 'Development;Utility;',
-            StartupWMClass: 'Qepton'
+            entry: {
+              Name: 'Qepton',
+              Icon: 'qepton',
+              StartupWMClass: 'Qepton'
+            }
           },
           synopsis: 'Prompt and Code Snippet Manager',
           description: 'A powerful code snippet manager that connects to GitHub Gist. Features include smart tagging, fuzzy search, syntax highlighting, and multi-platform support.',
@@ -350,9 +355,12 @@ export default function (ctx) {
           depends: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', 'libXtst', 'xdg-utils', 'at-spi2-core', 'libuuid', 'libsecret']
         },
 
+        // The org is whizbangdevelopers-org. The account "whizbangdevelopers" does not exist, and
+        // publishing under it reached this repository only through GitHub's rename redirect,
+        // which ends the day anyone registers that name (measured 2026-11-08).
         publish: [{
           provider: 'github',
-          owner: 'whizbangdevelopers',
+          owner: 'whizbangdevelopers-org',
           repo: 'Qepton',
           releaseType: 'release'
         }]
