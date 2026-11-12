@@ -1,0 +1,4 @@
+{
+  "block-sweep-staging.sh": "never adopted in Qepton: the archetype's guard against a sweeping `git add` (-A, ., a directory). Whether to carry it is open on Qepton's handoff list.",
+  "e2e-after-code-push.sh": "never adopted in Qepton: the archetype's post-push direction to run the Docker E2E suite after a push that published code/. Whether to carry it is open on Qepton's handoff list."
+}
