@@ -64,6 +64,13 @@ function rootInstall(command: string): boolean {
   return true
 }
 
+/** Where the last npm install on a line starts, or -1. */
+function lastInstallAt(command: string): number {
+  let at = -1
+  for (const m of command.matchAll(/\bnpm\s+(ci|install|i)\b/g)) at = m.index
+  return at
+}
+
 /** The problems an install file has: a root install with scripts off and no applier after it. */
 export function installGaps(name: string, text: string, kind: Kind): string[] {
   if (kind === 'nix') {
@@ -79,8 +86,15 @@ export function installGaps(name: string, text: string, kind: Kind): string[] {
   let pending: number | null = null
   for (const { line, text: command } of logicalLines(text, kind === 'dockerfile')) {
     const live = command.replace(/(^|\s)#.*$/, '')
-    if (live.includes(APPLIER)) pending = null
-    if (rootInstall(live) && /--ignore-scripts\b/.test(live)) pending ??= line
+    // Position counts within a line as well as between lines. An applier covers every install
+    // before it, so `npm ci --ignore-scripts && npx tsx scripts/apply-…` is covered and the same two
+    // the other way round are not. Until 2026-11-13 a line was judged applier first and install
+    // second, whatever their order, so the first form was refused: Weaver's demo entrypoint.
+    const applierAt = live.lastIndexOf(APPLIER)
+    if (applierAt >= 0) pending = null
+    const lastInstall =
+      rootInstall(live) && /--ignore-scripts\b/.test(live) ? lastInstallAt(live) : -1
+    if (lastInstall >= 0 && lastInstall > applierAt) pending ??= line
   }
   if (pending !== null) {
     gaps.push(
@@ -116,6 +130,25 @@ export const CORPUS: Case[] = [
     name: 'an applier BEFORE the install does not',
     kind: 'dockerfile',
     text: 'RUN npx tsx scripts/apply-dependency-patches.ts\nRUN npm ci --ignore-scripts\n',
+    gaps: 1
+  },
+  {
+    // Weaver's demo entrypoint, refused until 2026-11-13: the line was read applier first
+    name: 'the applier chained after the install on one line covers it',
+    kind: 'shell',
+    text: 'npm ci --ignore-scripts && npm rebuild better-sqlite3 && npx tsx scripts/apply-dependency-patches.ts\n',
+    gaps: 0
+  },
+  {
+    name: 'an applier chained BEFORE the install on one line does not',
+    kind: 'dockerfile',
+    text: 'RUN npx tsx scripts/apply-dependency-patches.ts && npm ci --ignore-scripts\n',
+    gaps: 1
+  },
+  {
+    name: 'a second install after the applier on one line is not covered',
+    kind: 'shell',
+    text: 'npm ci --ignore-scripts && npx tsx scripts/apply-dependency-patches.ts && npm ci --ignore-scripts\n',
     gaps: 1
   },
   {

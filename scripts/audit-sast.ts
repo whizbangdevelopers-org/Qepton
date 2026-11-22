@@ -15,8 +15,9 @@
  * Uses regex scanning — no external dependencies required.
  */
 
-import { readFileSync, readdirSync, statSync } from 'fs'
-import { join, relative, extname, dirname } from 'path'
+import { execFileSync } from 'child_process'
+import { readFileSync, readdirSync, statSync, lstatSync } from 'fs'
+import { join, relative, extname, dirname, isAbsolute } from 'path'
 import { fileURLToPath } from 'url'
 
 // ES module — no __dirname. Needed to locate the regression corpus relative to this file
@@ -47,9 +48,10 @@ interface Rule {
    * A regex alone cannot separate a credential from a UI label or a translated word, and
    * trying to express that in one pattern produces something nobody can read or justify.
    * The match groups are handed here instead, where the reasoning can be stated in prose
-   * and tested.
+   * and tested. `nearby` is the line and the three on either side of it (just the line, in the
+   * corpus), for a judgement a sibling key decides (isTokenizerPiece).
    */
-  validate?: (match: RegExpMatchArray, line: string) => boolean
+  validate?: (match: RegExpMatchArray, line: string, nearby: string) => boolean
 }
 
 /* -------------------------------------------------------------------------- */
@@ -111,6 +113,15 @@ const SECRET_LOCATION_NAME = /(?:_file|_path|_filepath|_dir|_location|_uri|_url)
 const SECRET_LOCATION_NAME_CAMEL = /(?:File|FilePath|Path|Dir|Location|Uri|URI|Url|URL)$/
 
 /**
+ * nginx's `proxy_pass`, spelt `proxyPass` in a NixOS virtual host, is the upstream ADDRESS a
+ * location forwards to. Its name holds `pass`, so it read as a password field the first time the
+ * scan read .nix files: three `proxyPass = "http://127.0.0.1:…"` lines in king's webserver.nix,
+ * 2026-11-22. Exact names only, and the URL test below still applies, so an upstream URL that
+ * carries a credential stays a finding.
+ */
+const PROXY_PASS_NAME = /^proxy[-_]?pass$/i
+
+/**
  * A URL that CARRIES a credential is the credential, whatever its name says — basic-auth
  * userinfo (`https://user:pass@host`) or a credential-named query parameter. Without this, the
  * location exemption would wave through exactly the webhook and token URLs that leak. It applies
@@ -138,6 +149,43 @@ const URL_CARRIES_CREDENTIAL =
  * deliberately not quoted here — this rule flags a credential-shaped string whether or not it sits
  * in a comment, which is correct and which this docblock tripped on its first run.
  */
+/**
+ * One sops value: `ENC[AES256_GCM,data:<b64>,iv:<b64>,tag:<b64>,type:<kind>]`, nothing else. The
+ * lengths are AES-256-GCM's: a 32-byte IV is 44 base64 characters and a 16-byte tag is 24, and
+ * the data is whole base64. All 63 sops values in the fleet's repositories have exactly that
+ * shape (measured 2026-11-22). Until then each field took any base64-alphabet run, so a plaintext
+ * wrapped in the envelope's shape passed (`data:hunter2hunter2,iv:x,tag:y`, found by a peer
+ * session the same day). A value built to imitate ciphertext still passes; no static check stops
+ * that. An accidental one no longer does.
+ */
+const SOPS_CIPHERTEXT =
+  /^ENC\[AES256_GCM,data:(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?,iv:[A-Za-z0-9+/]{43}=,tag:[A-Za-z0-9+/]{22}==,type:[a-z]+\]$/
+
+/**
+ * A name that declares a PATTERN, holding pattern syntax, FINDS credentials; it is not one.
+ * Ported 2026-11-22 from anvil's audit-credential-fallbacks.py, so the two auditors agree, when
+ * this scan first read anvil and reported github-token-scan.sh's TOKEN_RE, the regex that locates
+ * GitHub tokens. Both halves are required, so a regex-looking value under a credential name is
+ * still a literal. `+` is left out of the syntax on purpose: base64 carries it, and counting it
+ * let a base64 secret under a …_PATTERN name through in anvil the day the exemption landed. The
+ * camelCase spelling (`tokenPattern`) is added here, because this archetype's repos are TypeScript.
+ */
+const PATTERN_NAME = /(?:_(?:re|regex|pattern)|Regex|Pattern)$/i
+const REGEX_SYNTAX = /[[\](){}|\\*?^]/
+
+/**
+ * An LLM's tokenizer piece, not a credential: a `token` key beside a `logprob` key, which is how
+ * llama-server and the OpenAI API report token probabilities. Found 2026-11-22 when this scan
+ * first read anvil: its duplicate judge's recorded outputs hold word pieces such as an underscore
+ * and a capitalised word, and the name alone cannot tell an NLP token from an auth token. The
+ * sibling key can (corpus section "an LLM's tokenizer piece"). `nearby` is
+ * the finding's line and the three on either side, since a JSON record puts `logprob` on the next
+ * line; the corpus passes the line alone, and TOKENIZER_CASES pin the multi-line form.
+ */
+function isTokenizerPiece(key: string, nearby: string): boolean {
+  return key === 'token' && /["']?(?:logprob|top_logprobs)["']?\s*:/.test(nearby)
+}
+
 const ENV_VAR_NAME_HOLDER = /(?:_env|_env_var|_var|_var_name|_env_name|_key_name)$/i
 const ENV_VAR_NAME_VALUE = /^[A-Z][A-Z0-9_]{2,}$/
 
@@ -201,6 +249,49 @@ function isCredentialValue(value: string): boolean {
 }
 
 /**
+ * Does `value` repeat a word of its own name, other than the credential word? That is the
+ * default-credential shape: a Postgres password that is the word postgres, a MySQL root password
+ * that is the word root, an admin password that is the word admin. It is judged by the echo, not
+ * by entropy, so it applies at any length from two characters. The corpus section "a value that
+ * repeats its own name" holds the cases; they are not quoted here, because this rule reads
+ * comments too.
+ *
+ * Found 2026-11-22, when king's oracle.nix set Oracle's admin password to the word oracle and
+ * this scan, in king's pre-push that day, passed it. `isCredentialValue` reads an all-letters
+ * value as a word, which is right for a translation table and let through the most common
+ * hardcoded passwords there are, and the six-character floor kept a four-letter one from being
+ * judged at all.
+ *
+ * Three conditions, each from a measured case:
+ * - The name ENDS in the credential term, so the credential is what it names. Gantry's
+ *   CHANNEL_SECRET_PURPOSE names the purpose a channel's secret is filed under, and its value,
+ *   a word of its own name, is a label (2026-11-22, the first run of this check).
+ * - The echo is a word BEFORE that term; the term itself never counts, so a label that repeats
+ *   it stays a label.
+ * - The value is lower-case letters and digits. A default is typed at a prompt; a display label
+ *   (a show-password button's "Show") is capitalised. A lower-case label under a name ending in
+ *   the term is the edge this leaves, and a reasoned suppression covers it.
+ * The value may be several such words joined by `-`, `.` or `_`, the FIRST of them the echo: a
+ * service's default names the service, then its role or host, and reads as prose to
+ * isCredentialValue. anvil's credential-fallback auditor carries one, a past Engram default, as a
+ * must-catch fixture that this scan passed the same day. Any word was tried first, and read a
+ * pytest fixture that merely contains a word of its name (anvil, the same run).
+ * Names split at `_`, `-`, `.` and a camelCase boundary, and a placeholder stays a placeholder.
+ */
+const SECRET_NAME_TAIL = new RegExp(`(?:${SECRET_NAME.source})$`, 'i')
+function isNameEchoCredential(key: string, value: string): boolean {
+  if (!/^[a-z0-9]+(?:[-._][a-z0-9]+)*$/.test(value) || value.length < 2) return false
+  if (PLACEHOLDER_VALUE.test(value)) return false
+  const tail = SECRET_NAME_TAIL.exec(key)
+  if (!tail) return false
+  const first = value.split(/[-._]/)[0]
+  return key
+    .slice(0, tail.index)
+    .split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/)
+    .some(w => w.length > 1 && w.toLowerCase() === first)
+}
+
+/**
  * Is `key` assigned `value` a hardcoded credential? The one judgement both secret-assignment
  * rules make, quoted and unquoted, so they cannot disagree about what counts.
  */
@@ -215,18 +306,28 @@ function isHardcodedSecret(key: string, value: string): boolean {
   // PASSWORD_FILE=/run/secrets/… and accessTokenUrl = 'https://…/access_token' name a LOCATION —
   // unless the value is a URL that carries the credential itself.
   if (
-    (SECRET_LOCATION_NAME.test(key) || SECRET_LOCATION_NAME_CAMEL.test(key)) &&
+    (SECRET_LOCATION_NAME.test(key) ||
+      SECRET_LOCATION_NAME_CAMEL.test(key) ||
+      PROXY_PASS_NAME.test(key)) &&
     !URL_CARRIES_CREDENTIAL.test(value)
   )
     return false
   // TOKEN_ENV = 'APP_GITHUB_TOKEN' — the NAME of the variable, not its value. Same class.
   if (ENV_VAR_NAME_HOLDER.test(key) && ENV_VAR_NAME_VALUE.test(value)) return false
+  // TOKEN_RE = '(ghp|gho)_[A-Za-z0-9]{36}…', the pattern that finds a credential (PATTERN_NAME).
+  if (PATTERN_NAME.test(key) && REGEX_SYNTAX.test(value)) return false
   // The value is a path, not a secret: absolute, relative, home, a drive letter, or one rooted
   // at a variable (`"$ROOT/secrets/app.yaml"`, added 2026-09-18, when Gantry's sops wrapper
   // naming the file it decrypts from was reported as a hardcoded secret). The variable must
   // START the value and be followed by a separator; the corpus pins both halves.
   if (/^[./~]|^[A-Za-z]:[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*\//.test(value)) return false
   if (/^test_/i.test(value)) return false // fixture logins, not credentials
+  // A sops-encrypted value is ciphertext: the form a long-lived secret is SUPPOSED to take in git
+  // (~/.claude/rules/secrets.md). Found 2026-11-22 when the scan first read Gantry's repo-root
+  // secrets/gantry.yaml: `jwt-secret: ENC[AES256_GCM,…]` was reported, and its five siblings were
+  // not only because their names hold no secret word. The whole envelope must be present, data,
+  // iv, tag and type, so an `ENC[…]` wrapped around a plaintext value is still judged below.
+  if (SOPS_CIPHERTEXT.test(value)) return false
   // A shell EXPANSION is not a literal — `SECRET="$(openssl rand …)"`, `SECRET="$OTHER"`,
   // `SECRET=${OTHER}`, `SECRET=`cmd``. This is the one thing a static checker CAN decide with
   // certainty here, and excluding it cannot weaken literal detection: a literal has no
@@ -244,7 +345,40 @@ function isHardcodedSecret(key: string, value: string): boolean {
   // So the test is for an actual EXPANSION — `$(`, a backtick, `${`, or a value that is
   // ENTIRELY a bare variable reference — never for the character.
   if (/\$\(|`|\$\{/.test(value) || /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value)) return false
+  // Grafana's own indirection, `$__file{/run/…}`, `$__env{VAR}` or `$__vault{…}`, is how a
+  // NixOS Grafana reads a secret from sops. As the WHOLE value it names where the secret is, the
+  // same as `${…}`; with anything around it, the value is still judged. Found 2026-11-22, when the
+  // scan first read anvil's monitor.nix and reported its admin_password and secret_key.
+  if (/^\$__(?:file|env|vault)\{[^{}]+\}$/.test(value)) return false
+  if (isNameEchoCredential(key, value)) return true
   return isCredentialValue(value)
+}
+
+/**
+ * Does the unquoted `value` that `m` matched begin an angle-bracketed placeholder on `line`?
+ * `TOKEN=<registration token>` says what goes there, and PLACEHOLDER_VALUE exempts `<…>` already,
+ * but the shell-assignment shape ends a value at the first space, so it saw `<registration` with
+ * no `>`. Read from the line, so a `<` with no closing `>` stays a literal. Found 2026-11-22 in a
+ * comment in anvil's forgejo-runner-microvm.nix, the first time a scan read it.
+ */
+function angledPlaceholderAt(line: string, m: RegExpMatchArray, value: string): boolean {
+  if (!value.startsWith('<') || m.index === undefined) return false
+  const at = m.index + m[0].lastIndexOf(value)
+  return /^<[^<>\n]+>/.test(line.slice(at))
+}
+
+/**
+ * Is `content` a literal written into the secret-named file at `path`? The judgement for
+ * `secret-file-content`. The PATH is what is judged by name, since a file called initial-password
+ * holds a password whatever its content looks like, so no placeholder or entropy exemption
+ * applies: `CHANGEME` written there is the password. Only content that is not a literal is let
+ * through: tmpfiles' `-` (no argument) and an expansion, which is computed where it runs.
+ */
+function isSecretFileContent(path: string, content: string): boolean {
+  if (!SECRET_NAME.test(path)) return false
+  if (content === '-') return false
+  if (/\$\(|`|\$\{/.test(content)) return false
+  return content.length > 0
 }
 
 const rules: Rule[] = [
@@ -302,6 +436,11 @@ const rules: Rule[] = [
     //
     //   1. attribute pair  <env name="TEST_DB_PASS" value="…"/>   (XML / phpunit / CI config)
     //   2. assignment      $password = '…'   'password' => '…'   password: '…'   PASS="…"
+    //                      $cfg['blowfish_secret'] = '…'   (an element: `]` before the `=`)
+    //
+    // The element form was missed until 2026-11-22, and it is how PHP's own config files are
+    // written: phpMyAdmin's cookie key sat on king as `$cfg['blowfish_secret'] = '…'`, inside a Nix
+    // string, and this rule could see neither the `]` nor the `.nix` file around it.
     //
     // The attribute form is FIRST on purpose. Alternation is ordered, and on an XML line the
     // assignment branch happily matches name="TEST_DB_PASS" — key `name`, which is not
@@ -309,11 +448,15 @@ const rules: Rule[] = [
     // That silently reinstated the exact miss this rule exists to prevent.
     //
     // No 20-char minimum and no alphanumeric-only class — those two limits are what made the
-    // previous rule blind to a live production password.
+    // previous rule blind to a live production password. The value floor is two characters, not
+    // six: a value that repeats its own name (isNameEchoCredential) is a credential at any length,
+    // and every other value still has to pass isCredentialValue's six (2026-11-22).
     pattern:
-      /(?:name\s*=\s*["']([^"'\n]+)["']\s+value\s*=\s*["']([^"'\n]{6,})["']|["']?([A-Za-z_$][\w$-]*)["']?\s*(?:=>|[:=])\s*["']([^"'\n]{6,})["'])/i,
+      /(?:name\s*=\s*["']([^"'\n]+)["']\s+value\s*=\s*["']([^"'\n]{2,})["']|["']?([A-Za-z_$][\w$-]*)["']?\]?\s*(?:=>|[:=])\s*["']([^"'\n]{2,})["'])/i,
     // .php/.xml/.yml/.env/.sh matter: the DemoCRM leak lived in .php and phpunit.xml, and
-    // a rule that only reads the languages you like is not a control.
+    // a rule that only reads the languages you like is not a control. .nix matters for the same
+    // reason: a NixOS module writes other languages' config inside its strings (PHP, INI, shell),
+    // and every repo built from this archetype ships one under code/nixos/.
     extensions: [
       '.ts',
       '.js',
@@ -327,7 +470,8 @@ const rules: Rule[] = [
       '.sh',
       '.py',
       '.ini',
-      '.conf'
+      '.conf',
+      '.nix'
     ],
     // No blanket /test/ or /\/\/.*/ exclusion here — both were holes big enough to drive the
     // real leak through. Discrimination happens in validate(), on the captured VALUE.
@@ -338,8 +482,10 @@ const rules: Rule[] = [
       /\.example\./,
       /\.sample\./
     ],
-    validate: (m, line) =>
-      !keyInsideQuotedString(m, line) && isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
+    validate: (m, line, nearby) =>
+      !keyInsideQuotedString(m, line) &&
+      !isTokenizerPiece(m[1] ?? m[3] ?? '', nearby) &&
+      isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
   },
   {
     id: 'hardcoded-secret-unquoted',
@@ -366,11 +512,55 @@ const rules: Rule[] = [
     //      whitespace, `;`, `&`, `|` or the line's end. That is an env prefix on a command,
     //      `PGPASSWORD=… psql`, or one line of a `\`-continued block. Shape 1 cannot see either,
     //      and Gantry's E2E entrypoint passed a fixed JWT secret exactly that way.
+    //
+    // Both take values from two characters, for the name-echo case (isNameEchoCredential), and
+    // isCredentialValue still holds every other value to six.
     pattern:
-      /^\s*(?:export\s+|-\s+)?["']?([A-Za-z_][\w.-]*)["']?\s*[:=]\s*([^\s"'#][^\s#]{5,})\s*(?:#.*)?$|(?:^|\s)(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=([^\s"'#\\][^\s;&|]{5,})(?=[\s;&|]|$)/,
+      /^\s*(?:export\s+|-\s+)?["']?([A-Za-z_][\w.-]*)["']?\s*[:=]\s*([^\s"'#][^\s#]+)\s*(?:#.*)?$|(?:^|\s)(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=([^\s"'#\\][^\s;&|]+)(?=[\s;&|]|$)/,
     extensions: ['.yml', '.yaml', '.env', '.sh', '.ini', '.conf'],
     excludePaths: [/node_modules/, /\.example\./, /\.sample\./],
-    validate: m => isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
+    validate: (m, line) =>
+      !angledPlaceholderAt(line, m, m[2] ?? m[4] ?? '') &&
+      isHardcodedSecret(m[1] ?? m[3] ?? '', m[2] ?? m[4] ?? '')
+  },
+  {
+    id: 'hardcoded-secret-unquoted',
+    description:
+      'Credential assigned an UNQUOTED literal in shell inside a Nix string — load it from a secret store',
+    severity: 'error',
+    // Shape 2 above, for Nix. A NixOS module carries shell in its strings (a unit's script, a
+    // writeShellScript), so `PGPASSWORD=… psql` sits in a .nix file as often as in a .sh one.
+    // Shape 1 is left out on purpose: in Nix `password = config.services.x.password;` is an
+    // expression, and the whole-line shape reads its value as a literal. The `[.nix]` corpus lines
+    // pin both halves. Same id and the same judgement, so one suppression spelling covers both.
+    pattern: /(?:^|\s)(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=([^\s"'#\\][^\s;&|]+)(?=[\s;&|]|$)/,
+    extensions: ['.nix'],
+    excludePaths: [/node_modules/, /\.example\./, /\.sample\./],
+    validate: (m, line) =>
+      !angledPlaceholderAt(line, m, m[2] ?? '') && isHardcodedSecret(m[1] ?? '', m[2] ?? '')
+  },
+  {
+    id: 'secret-file-content',
+    description:
+      'A literal written into a file named as a secret — generate it on the host, or decrypt it there',
+    severity: 'error',
+    // A file whose PATH says password, secret, token or key holds a credential whatever is written
+    // into it, so the value test the assignment rules apply (entropy, placeholders) does not apply
+    // here. Measured 2026-11-22 on king: a systemd-tmpfiles rule wrote a dictionary word into
+    // pgAdmin's first-run password file (`f /var/lib/pgadmin/initial-password 0600 … - <word>`),
+    // and the word became the live admin login. The assignment rules could not see it twice over:
+    // there is no assignment, and a short lower-case word reads as a word, which is right for a key
+    // and wrong for a file named as a password.
+    //
+    // Covered: tmpfiles.d's f, f+, F, w and w+ lines, in a .conf file or inside a Nix string. The
+    // groups are the path and the argument, so the report names the file and redacts what it holds.
+    // Not covered, because no instance has been measured: environment.etc."…".text, writeText, and
+    // tmpfiles.settings' attribute form, whose argument sits on its own line.
+    pattern:
+      /(?:^|["'\s])[fFw]\+?\s+(\/\S+)\s+\S+\s+\S+\s+\S+\s+\S+\s+([^"'\s][^"'\n]*?)\s*(?=["']|$)/,
+    extensions: ['.nix', '.conf'],
+    excludePaths: [/node_modules/],
+    validate: m => isSecretFileContent(m[1] ?? '', m[2] ?? '')
   },
   {
     id: 'known-secret-format',
@@ -407,7 +597,8 @@ const rules: Rule[] = [
       '.py',
       '.ini',
       '.conf',
-      '.md'
+      '.md',
+      '.nix'
     ],
     excludePaths: [/node_modules/, /package(-lock)?\.json$/]
   },
@@ -443,7 +634,7 @@ const rules: Rule[] = [
 ]
 
 /**
- * The two rules that hunt for credentials, as opposed to code shapes.
+ * The rules that hunt for credentials, as opposed to code shapes.
  *
  * The distinction is load-bearing in exactly one place: this scanner's own rule table
  * necessarily CONTAINS every pattern it hunts for (`Math.random()`, `eval(`, …), so the
@@ -458,6 +649,7 @@ const rules: Rule[] = [
 const SECRET_RULE_IDS = new Set([
   'hardcoded-secret',
   'hardcoded-secret-unquoted',
+  'secret-file-content',
   'known-secret-format'
 ])
 
@@ -470,7 +662,7 @@ const SECRET_RULE_IDS = new Set([
  * XML puts several attributes on a line as a matter of course. Found 2026-10-01, when a corpus
  * case for an exemption could not fail because the line's first attribute shadowed the second.
  */
-function firstFinding(rule: Rule, line: string): RegExpMatchArray | null {
+function firstFinding(rule: Rule, line: string, nearby: string = line): RegExpMatchArray | null {
   // Not `matchAll`: its matches never overlap, so a match `validate` rejected swallowed every match
   // that began inside it. In `echo 'host:' x; DB_PASSWORD='…'` the rejected `host` match runs from
   // the first quote to the third, and the assignment inside it was never tried (2026-10-02).
@@ -481,7 +673,7 @@ function firstFinding(rule: Rule, line: string): RegExpMatchArray | null {
   const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`
   const re = new RegExp(rule.pattern.source, flags)
   for (let m = re.exec(line); m; m = re.exec(line)) {
-    if (!rule.validate || rule.validate(m, line)) return m
+    if (!rule.validate || rule.validate(m, line, nearby)) return m
     const began = /^["']?[\w$-]*/.exec(line.slice(m.index))![0].length
     re.lastIndex = m.index + Math.max(1, began)
   }
@@ -507,30 +699,6 @@ function keyInsideQuotedString(m: RegExpMatchArray, line: string): boolean {
   return after !== null && after[1] !== open && after[2] === open
 }
 const SELF = /scripts\/audit-sast\.ts$/
-
-/**
- * The `.github` directory of the repository `rootDir` is in: the nearest one at or above it, looking
- * no higher than the repository root (the first directory holding `.git`). In a checkout without
- * `.git`, such as a `git archive` export, it looks up to the filesystem root. Null when there is none.
- */
-function repositoryGithubDir(rootDir: string): string | null {
-  for (let dir = rootDir; ; dir = dirname(dir)) {
-    const candidate = join(dir, '.github')
-    try {
-      if (statSync(candidate).isDirectory()) return candidate
-    } catch {
-      /* none here */
-    }
-    let atRepoRoot = false
-    try {
-      statSync(join(dir, '.git'))
-      atRepoRoot = true
-    } catch {
-      /* not the repository root */
-    }
-    if (atRepoRoot || dirname(dir) === dir) return null
-  }
-}
 
 function walkDir(dir: string, extensions: string[]): string[] {
   const files: string[] = []
@@ -659,8 +827,21 @@ const SUPPRESSION_CASES: { lines: string[]; at: number; suppressed: boolean; why
   }
 ]
 
-function scanFile(filePath: string, rule: Rule): Finding[] {
-  const relPath = relative(process.cwd(), filePath)
+/** The line and the three on either side: what a judgement such as isTokenizerPiece reads. */
+function nearbyLines(lines: readonly string[], i: number): string {
+  return lines.slice(Math.max(0, i - 3), i + 4).join('\n')
+}
+
+/**
+ * A corpus line that holds several source lines, joined by RECORD_JOIN: the first is the line
+ * judged and the rest follow it, read through nearbyLines as the scan reads a file. For a
+ * judgement a neighbouring line decides (isTokenizerPiece). Not `\n`, which corpus lines already
+ * contain as text.
+ */
+const RECORD_JOIN = ' ⏎ '
+
+function scanFile(filePath: string, rule: Rule, reportBase: string): Finding[] {
+  const relPath = relative(reportBase, filePath)
 
   if (rule.excludePaths?.some(p => p.test(relPath))) return []
 
@@ -677,7 +858,7 @@ function scanFile(filePath: string, rule: Rule): Finding[] {
     const line = lines[i]
 
     if (rule.excludePatterns?.some(p => p.test(line))) continue
-    const match = firstFinding(rule, line)
+    const match = firstFinding(rule, line, nearbyLines(lines, i))
     if (!match) continue
 
     // Suppressed on this line or the one above, or above its tag (`suppressedAt`), and only WITH a
@@ -687,8 +868,10 @@ function scanFile(filePath: string, rule: Rule): Finding[] {
     // NEVER echo a secret into CI logs — that just relocates the leak. Report the identifier
     // and the location, which is everything a human needs to go fix it, and nothing an
     // attacker reading a build log can use. (The first cut of this redacted the KEY and
-    // printed the VALUE, which is precisely backwards.)
-    const isSecretRule = rule.id === 'hardcoded-secret' || rule.id === 'known-secret-format'
+    // printed the VALUE, which is precisely backwards.) Every secret rule, read from
+    // SECRET_RULE_IDS: until 2026-11-22 this named two of them, so a hardcoded-secret-unquoted
+    // finding printed its line, value and all.
+    const isSecretRule = SECRET_RULE_IDS.has(rule.id)
     const secretKey = match[1] ?? match[3] ?? ''
 
     findings.push({
@@ -762,17 +945,33 @@ function selfTest(): void {
     const line = raw.trim()
     if (!line || line.startsWith('#')) continue
 
-    const expectCatch = line.startsWith('CATCH ')
-    const expectIgnore = line.startsWith('IGNORE ')
-    if (!expectCatch && !expectIgnore) continue
+    // `CATCH <line>` is judged by every secret rule. `CATCH[.nix] <line>` is judged only by the
+    // rules that read .nix files, which is how the corpus pins a rule that one format must not
+    // apply (in Nix, `password = config.x;` is an expression, so the whole-line unquoted shape is
+    // not run there). A line in neither form used to be skipped without a word, so a misspelt
+    // directive dropped its case from the contract unnoticed; it now fails the self-test.
+    const directive = /^(CATCH|IGNORE)(?:\[(\.[a-z0-9]+)\])? ([\s\S]*)$/.exec(line)
+    if (!directive) {
+      failures.push(`UNREADABLE CORPUS LINE: ${line}`)
+      continue
+    }
+    const expectCatch = directive[1] === 'CATCH'
+    const expectIgnore = !expectCatch
     if (expectCatch) catches++
     else ignores++
 
-    const subject = line.slice(line.indexOf(' ') + 1)
-    // The scan's own path, `firstFinding`, so the corpus tests what the scan actually does.
-    const caught = secretRules.some(
+    const subject = directive[3]!
+    const format = directive[2]
+    const judges = format ? secretRules.filter(r => r.extensions.includes(format)) : secretRules
+    if (judges.length === 0) failures.push(`NO SECRET RULE READS ${format}:  ${subject}`)
+    const record = subject.split(RECORD_JOIN)
+    const judged = record[0]!
+    // The scan's own path, `firstFinding` with `nearbyLines`, so the corpus tests what the scan
+    // actually does.
+    const caught = judges.some(
       rule =>
-        !rule.excludePatterns?.some(p => p.test(subject)) && firstFinding(rule, subject) !== null
+        !rule.excludePatterns?.some(p => p.test(judged)) &&
+        firstFinding(rule, judged, nearbyLines(record, 0)) !== null
     )
 
     if (expectCatch && !caught) failures.push(`MISSED (should catch):  ${subject}`)
@@ -818,22 +1017,80 @@ function selfTest(): void {
   console.log(`  auditor-contract: catch=${catches} ignore=${ignores}`)
 }
 
+/**
+ * Every file git tracks in the repository that `dir` is in, as absolute paths: the universe the
+ * secret rules scan, because it is exactly what a push publishes. Symlinks, submodules and files
+ * deleted from the working tree are left out, since none has content of its own here to read.
+ *
+ * Refuses when git cannot list them. A scan of an unknown file set that came back clean would be
+ * reporting on nothing, and that is the failure this whole rule set exists to stop.
+ */
+function trackedFiles(dir: string): string[] {
+  let top: string
+  let listing: string
+  try {
+    top = execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf-8'
+    }).trim()
+    listing = execFileSync('git', ['-C', top, 'ls-files', '-z'], {
+      encoding: 'utf-8',
+      maxBuffer: 256 * 1024 * 1024
+    })
+  } catch {
+    console.error(`\n  ✗ SAST: git cannot list the files tracked in ${dir}.`)
+    console.error(
+      '    The secret rules scan every tracked file; with no list, a clean scan would mean'
+    )
+    console.error('    nothing. Run it from a git checkout.\n')
+    process.exit(1)
+  }
+  return listing
+    .split('\0')
+    .filter(Boolean)
+    .map(p => join(top, p))
+    .filter(p => {
+      try {
+        return lstatSync(p).isFile()
+      } catch {
+        return false
+      }
+    })
+}
+
+/**
+ * `--repo <absolute path>`: scan ANOTHER repository's tracked files with the secret rules only.
+ * The code-pattern rules are this archetype's own and read its src/; the secret rules are the
+ * portfolio's contract and apply to any repository. king's NixOS config runs this from its
+ * pre-push (`/home/mark/etc`), the way it already reads anvil's checkout for its host list.
+ */
+function repoArgument(argv: readonly string[]): string | null {
+  const at = argv.indexOf('--repo')
+  if (at === -1) return null
+  const repo = argv[at + 1]
+  if (!repo || !isAbsolute(repo)) {
+    console.error('\n  ✗ SAST: --repo needs an absolute path to a git checkout.\n')
+    process.exit(2)
+  }
+  return repo
+}
+
 function main() {
   selfTest()
 
   const rootDir = process.cwd()
+  const otherRepo = repoArgument(process.argv.slice(2))
 
-  // scripts/, config/ and tests/ are scanned too. The previous list was ['src', 'backend/src'],
-  // and in the codebase where this was proven against real leaks, EVERY hardcoded credential
-  // lived outside those two directories — in test helpers, migration scripts, config and the
-  // webroot. A scanner pointed only at the tidy directories reports clean because it is not
-  // looking, which is the most expensive kind of green.
-  //
   // The scan is RULE-AWARE, and the distinction is deliberate:
   //
-  //   SECRET rules scan WIDE. Credentials hide in test helpers, migration scripts, config and
-  //   the webroot — that is the entire lesson above. Narrow scanning is how the old rule stayed
-  //   blind.
+  //   SECRET rules scan EVERY TRACKED FILE in the repository (`trackedFiles`), whatever directory it
+  //   is in. Credentials hide in test helpers, migration scripts, config and the webroot, and in
+  //   the codebase where this was proven against real leaks every one lived outside src/. The scan
+  //   then grew one directory at a time: scripts/, config/ and tests/, then testing/ and the
+  //   repository's .github (2026-10-01), each added after something was found where nobody looked.
+  //   Measured 2026-11-22, that list still missed about half of every repository's scannable files:
+  //   332 of 561 here, 744 of 1501 in Weaver, 503 of 1572 in Gantry and 204 of 409 in Qepton,
+  //   among them code/nixos/, every repo-root scripts/ and .claude/hooks/. A list of directories is
+  //   a claim about where secrets are; what git tracks is what a push publishes.
   //
   //   CODE-PATTERN rules (command-injection, xss, …) scan only app code (src, backend/src).
   //   They target attacker-reachable server/client code. Pointing them at scripts/ floods the
@@ -854,40 +1111,24 @@ function main() {
           return false
         }
       })
-  const NARROW = asDirs(['src', 'backend/src'])
-  // `testing` and the repository's `.github` added 2026-10-01. Every repo built from this archetype
-  // keeps its tests in `testing/`, not `tests/`, and its workflows at the REPOSITORY root, outside
-  // the code directory. So the E2E entrypoints, compose files and fixtures, and every workflow, were
-  // never scanned. The workflows directory is FOUND, not assumed: it sits one level up in Gantry and
-  // Weaver and two in Qepton, and `asDirs` drops a missing directory silently, so a fixed
-  // `'../.github'` would have scanned nothing in Qepton and still reported clean.
-  const githubDir = repositoryGithubDir(rootDir)
-  const WIDE = [
-    ...asDirs(['src', 'backend/src', 'scripts', 'config', 'testing', 'tests', 'test', 'public']),
-    ...(githubDir ? [githubDir] : [])
-  ]
+  const NARROW = otherRepo ? [] : asDirs(['src', 'backend/src'])
 
   const allExtensions = [...new Set(rules.flatMap(r => r.extensions))]
   const narrowFiles = NARROW.flatMap(d => walkDir(d, allExtensions))
-  const wideFiles = WIDE.flatMap(d => walkDir(d, allExtensions))
-
-  // Root-level config files (.env, phpunit.xml, docker-compose.yml …) are where credentials
-  // most often sit, and they are in no directory at all — so the WIDE (secret) scan includes them.
-  for (const entry of readdirSync(rootDir)) {
-    const full = join(rootDir, entry)
-    try {
-      if (statSync(full).isFile() && allExtensions.includes(extname(entry))) wideFiles.push(full)
-    } catch {
-      /* unreadable — skip */
-    }
-  }
+  const wideFiles = trackedFiles(otherRepo ?? rootDir).filter(f =>
+    allExtensions.includes(extname(f))
+  )
+  // Findings name a file relative to the repository scanned with --repo, and to the code directory
+  // otherwise, as they always have.
+  const reportBase = otherRepo ?? rootDir
 
   const findings: Finding[] = []
   for (const rule of rules) {
+    if (otherRepo && !SECRET_RULE_IDS.has(rule.id)) continue
     const pool = SECRET_RULE_IDS.has(rule.id) ? wideFiles : narrowFiles
     const relevantFiles = pool.filter(f => rule.extensions.includes(extname(f)))
     for (const file of relevantFiles) {
-      findings.push(...scanFile(file, rule))
+      findings.push(...scanFile(file, rule, reportBase))
     }
   }
 

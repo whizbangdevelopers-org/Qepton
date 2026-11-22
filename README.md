@@ -40,14 +40,8 @@ Qepton is a powerful AI Prompt and code snippet manager that connects to multipl
 ### Coming Soon
 - 🔄 **GitLab Snippets** - Support for GitLab
 - 🪣 **Bitbucket Snippets** - Support for Bitbucket
-- 🔌 **Plugin System** - Extend functionality with plugins
 
-### Premium Features
-Premium features are available in [Qepton Premium](https://github.com/wriver4/qepton-premium):
-- 🤖 **AI Assist** - Code explanations, suggestions, auto-tagging
-- 👥 **Team Sync** - Real-time collaboration
-- 🏠 **Gitea/Forgejo** - Self-hosted git service support
-- 🔀 **Migration Tools** - Cross-platform snippet migration
+Qepton is free, with no paid edition and no plugin system.
 
 ## Quick Start
 
@@ -181,13 +175,11 @@ npx quasar serve dist/spa
 
 ```
 src/
-├── core/              # Core types and plugin system
+├── core/              # Core types
 ├── adapters/          # Service adapters (GitHub, GitLab, etc.)
 │   ├── github/
 │   ├── gitlab/
 │   └── bitbucket/
-├── plugins/           # Plugin implementations
-│   └── basic/         # Free plugins
 ├── components/        # Vue components
 ├── pages/             # Route pages
 ├── layouts/           # Layout components
@@ -209,22 +201,6 @@ interface SnippetServiceAdapter {
   createSnippet(payload): Promise<Snippet>;
   // ... more methods
 }
-```
-
-### Plugin System
-Extend Qepton with plugins:
-
-```typescript
-const myPlugin: QeptonPlugin = {
-  id: 'my-plugin',
-  name: 'My Plugin',
-  install(app) {
-    app.registerCommand({
-      id: 'my-command',
-      execute: () => { /* ... */ }
-    });
-  }
-};
 ```
 
 ## Development
