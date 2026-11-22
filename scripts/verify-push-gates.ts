@@ -39,9 +39,11 @@
  * Script references are recovered by token, not by parsing shell — the hook may call `npm run X`
  * directly or pass X to its own runner function (`run_gate "1/4" build:all`), and a shell parser
  * that handled both would be more machinery than the problem deserves. Full-line `#` comments are
- * stripped first, so a header that merely NAMES a gate does not satisfy it. A namespaced token
- * inside an `echo` string would — accepted, because the failure it permits (claiming a gate you
- * also print) is not one anybody reaches by accident.
+ * stripped first, so a header that merely NAMES a gate does not satisfy it. So are lines whose
+ * command is `echo` or `printf`. This file once accepted a token inside an echo, reasoning that
+ * claiming a gate you also print is not reached by accident. It is: on 2026-11-22, Weaver's hook
+ * pointed at a narrower chain still printed "Pre-push: test:prepush on …", and the build and
+ * unrun-gate checks both passed on the status line alone.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -49,7 +51,9 @@ import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..')
-const REPO = execFileSync('git', ['-C', PKG, 'rev-parse', '--show-toplevel'], { encoding: 'utf-8' }).trim()
+const REPO = execFileSync('git', ['-C', PKG, 'rev-parse', '--show-toplevel'], {
+  encoding: 'utf-8'
+}).trim()
 const HOOK_DIR = join(PKG, '.githooks')
 const HOOK = join(HOOK_DIR, 'pre-push')
 
@@ -67,8 +71,9 @@ export function referencedScripts(text: string, scripts: Scripts): string[] {
   const out = new Set<string>()
   for (const raw of text.split('\n')) {
     if (/^\s*#/.test(raw)) continue
-    const toks = [...raw.matchAll(NAMESPACED)].map((m) => m[0])
-    if (NPM_RUN.test(raw)) toks.push(...[...raw.matchAll(BARE)].map((m) => m[0]))
+    if (/^\s*(?:echo|printf)\b/.test(raw)) continue // it prints a name; it runs nothing
+    const toks = [...raw.matchAll(NAMESPACED)].map(m => m[0])
+    if (NPM_RUN.test(raw)) toks.push(...[...raw.matchAll(BARE)].map(m => m[0]))
     for (const t of toks) if (t in scripts) out.add(t)
   }
   return [...out]
@@ -89,7 +94,7 @@ export function reachable(start: string[], scripts: Scripts): Set<string> {
 
 /** Pure: does anything reachable from `start` build the app? */
 export function gatesBuild(start: string[], scripts: Scripts): boolean {
-  return [...reachable(start, scripts)].some((n) => IS_BUILD.test(n))
+  return [...reachable(start, scripts)].some(n => IS_BUILD.test(n))
 }
 
 /**
@@ -108,7 +113,7 @@ export function gatesBuild(start: string[], scripts: Scripts): boolean {
  */
 export function gatesTypecheckScripts(start: string[], scripts: Scripts): boolean {
   if (!('typecheck:scripts' in scripts)) return true
-  return [...reachable(start, scripts)].some((n) => IS_TYPECHECK_SCRIPTS.test(n))
+  return [...reachable(start, scripts)].some(n => IS_TYPECHECK_SCRIPTS.test(n))
 }
 
 // ── Self-test ───────────────────────────────────────────────────────────────────────────────────
@@ -126,54 +131,184 @@ const SCRIPTS: Scripts = {
   'audit:sast': 'npx tsx scripts/audit-sast.ts',
   'audit:command-cwd': 'npx tsx scripts/verify-command-cwd.ts',
   lint: 'eslint .',
-  typecheck: 'vue-tsc --noEmit',
+  typecheck: 'vue-tsc --noEmit'
 }
 
+/**
+ * Pure: the checks a gate chain declares that no hook runs.
+ *
+ * Added 2026-11-22. Qepton's secret scan sat in `test:prepush` while its pre-push ran named checks
+ * one by one and never called that chain, so the scan gated nothing, and this file said nothing:
+ * its build half asks whether the hook reaches the BUILD, which cannot see a check that is not the
+ * build. Measured the same day across the template, Gantry, Weaver and Qepton, Qepton held five
+ * more such checks (audit:ownership, audit:python-lint, audit:vite-aliases, sync:shared's self-test
+ * and test:security), and audit:ownership failed on its first run.
+ *
+ * A chain is any of GATE_CHAINS this package defines. A script one reaches is covered when either
+ * hook, pre-push or pre-commit, reaches it. An AGGREGATOR, whose body is nothing but `npm run`
+ * calls, is not reported itself: this template's hook runs test:prepush's parts by name rather than
+ * the chain, which is correct, and each part is judged on its own. Token-level like the rest of the
+ * file, so a hook that runs a script without the chain's arguments still counts as running it.
+ */
+const GATE_CHAINS = ['test:precommit', 'test:prepush', 'test:compliance']
+const NPM_RUN_ONLY = /^\s*npm\s+run\s+[\w:.-]+(?:\s+--\s+[^&|;]*)?\s*$/
+
+/** Pure: is this script body nothing but `npm run` calls? */
+export function isAggregator(body: string): boolean {
+  return body.split(/&&|\|\||;/).every(seg => NPM_RUN_ONLY.test(seg))
+}
+
+/** Pure: scripts the gate chains reach that no hook reaches, aggregators aside. */
+export function unrunGates(scripts: Scripts, hooks: string[]): string[] {
+  const run = new Set<string>()
+  for (const h of hooks)
+    for (const s of reachable(referencedScripts(h, scripts), scripts)) run.add(s)
+  const chained = new Set<string>()
+  for (const c of GATE_CHAINS)
+    if (c in scripts) for (const s of reachable([c], scripts)) chained.add(s)
+  return [...chained].filter(s => !run.has(s) && !isAggregator(scripts[s] ?? '')).sort()
+}
+
+const GATE_SCRIPTS: Scripts = {
+  lint: 'eslint .',
+  'audit:sast': 'npx tsx scripts/audit-sast.ts',
+  'audit:ownership': 'node scripts/provision-ownership.js --check',
+  'audit:manual': 'npx tsx scripts/one-off.ts',
+  'test:precommit': 'npm run lint',
+  'test:prepush': 'npm run test:precommit && npm run audit:sast && npm run audit:ownership'
+}
+/** [why, the hooks' text, the script that must be reported] */
+const MUST_CATCH_UNRUN: [string, string[], string][] = [
+  [
+    "Qepton's shape: the hook runs checks by name and omits one the chain declares",
+    ['#!/usr/bin/env bash\nnpm run lint\nnpm run audit:sast\n'],
+    'audit:ownership'
+  ],
+  [
+    'a hook comment names the check, the body never runs it',
+    ['#!/usr/bin/env bash\n# audit:ownership runs below\nnpm run lint\nnpm run audit:sast\n'],
+    'audit:ownership'
+  ],
+  [
+    'the pre-commit hook runs its chain, and the pre-push runs nothing of the push chain',
+    ['#!/usr/bin/env bash\nnpm run test:precommit\n', '#!/usr/bin/env bash\necho ok\n'],
+    'audit:sast'
+  ]
+]
+const MUST_IGNORE_UNRUN: [string, string[]][] = [
+  ['the hook runs the chain', ['#!/usr/bin/env bash\nnpm run test:prepush\n']],
+  [
+    'the hook runs every part by name, never the chain itself',
+    ['#!/usr/bin/env bash\nnpm run lint\nnpm run audit:sast\nnpm run audit:ownership\n']
+  ],
+  [
+    'split across the two hooks, through a runner function',
+    [
+      '#!/usr/bin/env bash\nnpm run test:precommit\n',
+      '#!/usr/bin/env bash\nrun_check "sast" "npm --prefix /abs run audit:sast"\nrun_check "own" "npm --prefix /abs run audit:ownership"\n'
+    ]
+  ]
+]
+
 const MUST_CATCH: [string, string][] = [
-  ['the state this repo was in — hook gates compliance only', '#!/usr/bin/env bash\ncd code\nnpm run test:compliance\n'],
+  [
+    'the state this repo was in — hook gates compliance only',
+    '#!/usr/bin/env bash\ncd code\nnpm run test:compliance\n'
+  ],
   ['a hook that only lints', '#!/usr/bin/env bash\nnpm run lint\n'],
   // The exact false pass the naive `'build' in test:prepush` predicate would have given.
-  ['header NAMES build:all, body never runs it', '#!/usr/bin/env bash\n# gates: test:precommit, build:all, test:security\nnpm run test:compliance\n'],
-  ['reaches a script that stops short of the build', '#!/usr/bin/env bash\nnpm run test:precommit\n'],
+  [
+    'header NAMES build:all, body never runs it',
+    '#!/usr/bin/env bash\n# gates: test:precommit, build:all, test:security\nnpm run test:compliance\n'
+  ],
+  // Weaver's shape on 2026-11-22: the run line changed, the status line still names the chain.
+  [
+    'an echo names test:prepush, the hook runs a narrower chain',
+    '#!/usr/bin/env bash\necho "  Pre-push: test:prepush on ${SHA:0:12}"\nnpm --prefix "$WT/code" run test:precommit\n'
+  ],
+  [
+    'a printf names build:all, nothing runs it',
+    "#!/usr/bin/env bash\nprintf '%s\\n' 'gates: build:all'\nnpm run test:compliance\n"
+  ],
+  [
+    'reaches a script that stops short of the build',
+    '#!/usr/bin/env bash\nnpm run test:precommit\n'
+  ]
 ]
 // The typecheck:scripts half. Same populations, different predicate — a hook can gate the build
 // perfectly and still never typecheck the auditors that gate everything else.
 const MUST_CATCH_TS: [string, string][] = [
-  ['gates compliance + security + build, never the type chain', '#!/usr/bin/env bash\nnpm run test:compliance\nnpm run test:security\nnpm run build:all\n'],
-  ['invokes named checks individually and omits this one', '#!/usr/bin/env bash\nnpm run lint\nnpm run typecheck\nnpm run build\n'],
-  ['a hook that only builds', '#!/usr/bin/env bash\nnpm run build:all\n'],
+  [
+    'gates compliance + security + build, never the type chain',
+    '#!/usr/bin/env bash\nnpm run test:compliance\nnpm run test:security\nnpm run build:all\n'
+  ],
+  [
+    'invokes named checks individually and omits this one',
+    '#!/usr/bin/env bash\nnpm run lint\nnpm run typecheck\nnpm run build\n'
+  ],
+  ['a hook that only builds', '#!/usr/bin/env bash\nnpm run build:all\n']
 ]
 const MUST_IGNORE_TS: [string, string][] = [
-  ['reaches it via test:precommit', '#!/usr/bin/env bash\nnpm run test:precommit\nnpm run build:all\n'],
+  [
+    'reaches it via test:precommit',
+    '#!/usr/bin/env bash\nnpm run test:precommit\nnpm run build:all\n'
+  ],
   ['reaches it via test:prepush', '#!/usr/bin/env bash\nnpm run test:prepush\n'],
-  ['invokes typecheck:scripts directly', '#!/usr/bin/env bash\nnpm run typecheck:scripts\nnpm run build:all\n'],
-  ['a runner function taking it as an argument', '#!/usr/bin/env bash\nrun_check "types" "npm --prefix /abs run typecheck:scripts"\nrun_gate "2/2" build:all\n'],
+  [
+    'invokes typecheck:scripts directly',
+    '#!/usr/bin/env bash\nnpm run typecheck:scripts\nnpm run build:all\n'
+  ],
+  [
+    'a runner function taking it as an argument',
+    '#!/usr/bin/env bash\nrun_check "types" "npm --prefix /abs run typecheck:scripts"\nrun_gate "2/2" build:all\n'
+  ]
 ]
 
 const MUST_IGNORE: [string, string][] = [
   ['direct npm run build:all', '#!/usr/bin/env bash\nnpm run test:compliance\nnpm run build:all\n'],
   ['bare `build` on an npm run line', '#!/usr/bin/env bash\nnpm --prefix /abs/code run build\n'],
-  ["Weaver's shape — one chained script that reaches it", '#!/usr/bin/env bash\nnpm run test:prepush\n'],
-  ['a runner function taking the script as an argument', '#!/usr/bin/env bash\nrun_gate "2/4" build:all\nrun_gate "3/4" test:security\n'],
+  [
+    "Weaver's shape — one chained script that reaches it",
+    '#!/usr/bin/env bash\nnpm run test:prepush\n'
+  ],
+  [
+    'a runner function taking the script as an argument',
+    '#!/usr/bin/env bash\nrun_gate "2/4" build:all\nrun_gate "3/4" test:security\n'
+  ]
 ]
 
 function selfTest(): string[] {
   const fails: string[] = []
   for (const [name, hook] of MUST_CATCH) {
-    if (gatesBuild(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST CATCH but passed: ${name}`)
+    if (gatesBuild(referencedScripts(hook, SCRIPTS), SCRIPTS))
+      fails.push(`MUST CATCH but passed: ${name}`)
   }
   for (const [name, hook] of MUST_IGNORE) {
-    if (!gatesBuild(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST IGNORE but flagged: ${name}`)
+    if (!gatesBuild(referencedScripts(hook, SCRIPTS), SCRIPTS))
+      fails.push(`MUST IGNORE but flagged: ${name}`)
   }
   for (const [name, hook] of MUST_CATCH_TS) {
-    if (gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST CATCH (ts) but passed: ${name}`)
+    if (gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS))
+      fails.push(`MUST CATCH (ts) but passed: ${name}`)
   }
   for (const [name, hook] of MUST_IGNORE_TS) {
-    if (!gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS)) fails.push(`MUST IGNORE (ts) but flagged: ${name}`)
+    if (!gatesTypecheckScripts(referencedScripts(hook, SCRIPTS), SCRIPTS))
+      fails.push(`MUST IGNORE (ts) but flagged: ${name}`)
   }
   // A repo with no such script must never be flagged — the conditional half of the invariant.
   const noTs: Scripts = { build: 'quasar build', lint: 'eslint .' }
-  if (!gatesTypecheckScripts(['lint'], noTs)) fails.push('MUST IGNORE (ts): repo that defines no typecheck:scripts')
+  if (!gatesTypecheckScripts(['lint'], noTs))
+    fails.push('MUST IGNORE (ts): repo that defines no typecheck:scripts')
+  for (const [name, hooks, expected] of MUST_CATCH_UNRUN) {
+    const unrun = unrunGates(GATE_SCRIPTS, hooks)
+    if (!unrun.includes(expected)) fails.push(`MUST CATCH (unrun gate) but passed: ${name}`)
+    if (unrun.includes('audit:manual')) fails.push(`a script in no chain was reported: ${name}`)
+  }
+  for (const [name, hooks] of MUST_IGNORE_UNRUN) {
+    const unrun = unrunGates(GATE_SCRIPTS, hooks)
+    if (unrun.length)
+      fails.push(`MUST IGNORE (unrun gate) but flagged ${unrun.join(', ')}: ${name}`)
+  }
   return fails
 }
 
@@ -188,13 +323,14 @@ function main(): number {
     for (const f of fails) console.error(`    ${f}`)
     return 1
   }
-  const nCatch = MUST_CATCH.length + MUST_CATCH_TS.length
-  const nIgnore = MUST_IGNORE.length + MUST_IGNORE_TS.length + 1
+  const nCatch = MUST_CATCH.length + MUST_CATCH_TS.length + MUST_CATCH_UNRUN.length
+  const nIgnore = MUST_IGNORE.length + MUST_IGNORE_TS.length + 1 + MUST_IGNORE_UNRUN.length
   console.log(`  \x1b[32m✓\x1b[0m self-test: ${nCatch} catch + ${nIgnore} ignore cases`)
   // audit:auditor-contracts reads this line to see BOTH halves rather than trust they exist.
   console.log(`  auditor-contract: catch=${nCatch} ignore=${nIgnore}`)
 
-  const scripts: Scripts = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf-8')).scripts ?? {}
+  const scripts: Scripts =
+    JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf-8')).scripts ?? {}
   const problems: string[] = []
 
   if (!existsSync(HOOK)) {
@@ -223,6 +359,21 @@ function main(): number {
     }
   }
 
+  const hookTexts = ['pre-push', 'pre-commit']
+    .map(h => join(HOOK_DIR, h))
+    .filter(p => existsSync(p))
+    .map(p => readFileSync(p, 'utf-8'))
+  const unrun = unrunGates(scripts, hookTexts)
+  if (unrun.length) {
+    problems.push(
+      `${unrun.length} check(s) a gate chain declares are run by neither hook, so they gate nothing:\n` +
+        `      ${unrun.join(', ')}.\n` +
+        '      Run each from the pre-push hook (or the pre-commit one), or take it out of the chain.'
+    )
+  } else {
+    console.log('  \x1b[32m✓\x1b[0m every check the gate chains declare is run by a hook')
+  }
+
   if (!('test:prepush' in scripts)) {
     problems.push('no `test:prepush` script — a generated project inherits no push chain')
   } else if (!gatesBuild(['test:prepush'], scripts)) {
@@ -239,7 +390,9 @@ function main(): number {
     const want = relative(REPO, HOOK_DIR)
     let got = ''
     try {
-      got = execFileSync('git', ['-C', REPO, 'config', 'core.hooksPath'], { encoding: 'utf-8' }).trim()
+      got = execFileSync('git', ['-C', REPO, 'config', 'core.hooksPath'], {
+        encoding: 'utf-8'
+      }).trim()
     } catch {
       got = ''
     }
@@ -256,7 +409,9 @@ function main(): number {
   if (problems.length) {
     console.log('')
     for (const p of problems) console.log(`\x1b[31m  ✗ ${p}\x1b[0m`)
-    console.log('\n\x1b[31m\x1b[1mRESULT: FAIL\x1b[0m — the build is not gated where it needs to be.')
+    console.log(
+      '\n\x1b[31m\x1b[1mRESULT: FAIL\x1b[0m — a push gate does not run where it needs to.'
+    )
     return 1
   }
   console.log('\n\x1b[32m\x1b[1mRESULT: PASS\x1b[0m — the build is gated by a chain that runs')

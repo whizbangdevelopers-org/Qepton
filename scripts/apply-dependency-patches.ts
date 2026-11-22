@@ -2,9 +2,13 @@
 // Licensed under MIT. See LICENSE.
 
 /**
- * apply-dependency-patches — FORGE-142 (A defect in a dependency is fixed in the dependency, by a
- * patch the archetype carries and applies at every install until the dependency releases the fix;
- * the first is Quasar's queued focus).
+ * apply-dependency-patches — a defect in a dependency is fixed in the dependency, by a patch kept in
+ * `patches/` and applied at every install until the dependency releases the fix.
+ *
+ * No decision id here, unlike its gate: this file runs at every install, so it ships wherever the
+ * code does, a public mirror included, and an id there points a reader at a register they cannot
+ * read. Its gate, `scripts/verify-dependency-patches.ts`, cites the decision, and a repo that
+ * publishes keeps the gate out of its mirror.
  *
  *   npx tsx scripts/apply-dependency-patches.ts           apply every patch in patches/
  *   npx tsx scripts/apply-dependency-patches.ts --check   apply nothing; fail unless every patch is in place
@@ -160,7 +164,9 @@ function main(): void {
   for (const line of report.alreadyApplied) console.log(`  in place ${line}`)
   for (const line of report.problems) console.error(`  ✗ ${line}`)
   if (report.problems.length > 0) {
-    console.error(`dependency patches: ${report.problems.length} problem(s), FORGE-142`)
+    console.error(
+      `dependency patches: ${report.problems.length} problem(s); each patch in patches/ says why it exists and names its test`
+    )
     process.exit(1)
   }
 }
